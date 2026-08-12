@@ -44,28 +44,63 @@
         <p class="text-xl md:text-2xl text-gray-400 font-light max-w-2xl mx-auto mb-12">Personal explorations in electronic sound design. Currently under construction.</p>
         
         <!-- Synth Sequencer -->
-        <div class="max-w-2xl mx-auto">
-            <div class="bg-slate-900/50 border border-cyan-500/30 rounded-xl p-6 backdrop-blur">
-                <h3 class="text-cyan-400 text-lg font-light mb-4">step sequencer</h3>
+        <div class="max-w-3xl mx-auto">
+            <div class="bg-slate-900/50 border border-cyan-500/30 rounded-xl p-8 backdrop-blur">
+                <h3 class="text-cyan-400 text-lg font-light mb-6 tracking-wider">step sequencer</h3>
                 
-                <!-- Grid -->
-                <div class="bg-black/50 p-4 rounded-lg mb-4 overflow-x-auto">
-                    <div id="sequencer-grid" class="grid gap-2" style="grid-template-columns: repeat(8, minmax(40px, 1fr)); width: fit-content; margin: 0 auto;"></div>
+                <!-- Instruments -->
+                <div class="space-y-6 mb-6 overflow-visible">
+                    <!-- Drums -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-2 h-2 rounded-full bg-pink-500"></div>
+                            <span class="text-pink-400 text-sm font-light uppercase tracking-wider">Drums</span>
+                        </div>
+                        <div id="drum-grid" class="bg-black/50 p-4 rounded-lg grid gap-2 overflow-visible" style="grid-template-columns: repeat(8, minmax(48px, 1fr));"></div>
+                    </div>
+                    
+                    <!-- Bass -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-2 h-2 rounded-full bg-cyan-500"></div>
+                            <span class="text-cyan-400 text-sm font-light uppercase tracking-wider">Bass</span>
+                        </div>
+                        <div id="bass-grid" class="bg-black/50 p-4 rounded-lg grid gap-2 overflow-visible" style="grid-template-columns: repeat(8, minmax(48px, 1fr));"></div>
+                    </div>
+                    
+                    <!-- Lead -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-3">
+                            <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+                            <span class="text-orange-400 text-sm font-light uppercase tracking-wider">Lead</span>
+                        </div>
+                        <div id="lead-grid" class="bg-black/50 p-4 rounded-lg grid gap-2 overflow-visible" style="grid-template-columns: repeat(8, minmax(48px, 1fr));"></div>
+                    </div>
                 </div>
                 
                 <!-- Controls -->
-                <div class="flex justify-center gap-4 flex-wrap">
-                    <button id="play-btn" class="px-6 py-2 bg-gradient-to-r from-cyan-500 to-pink-500 text-white font-medium rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all">
-                        ▶ Play
+                <div class="flex justify-center gap-3 flex-wrap mb-4">
+                    <button id="play-btn" class="relative px-10 py-4 text-white font-bold rounded-xl uppercase tracking-widest text-sm overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-r from-cyan-500 via-pink-500 to-orange-500 opacity-100 group-hover:opacity-110 transition-opacity duration-300"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-cyan-500 via-pink-500 to-orange-500 blur-xl opacity-0 group-hover:opacity-75 transition-opacity duration-300"></div>
+                        <span class="relative flex items-center justify-center gap-2">
+                            <span id="play-icon">▶</span>
+                            <span id="play-text">Play</span>
+                        </span>
                     </button>
-                    <button id="clear-btn" class="px-6 py-2 bg-slate-700 text-gray-300 font-medium rounded-lg hover:bg-slate-600 transition-all">
-                        Clear
+                    <button id="clear-btn" class="relative px-10 py-4 text-gray-100 font-bold rounded-xl uppercase tracking-widest text-sm overflow-hidden group">
+                        <div class="absolute inset-0 bg-gradient-to-r from-slate-600 to-slate-700 opacity-100 group-hover:opacity-90 transition-opacity duration-300"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-slate-500 to-slate-600 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
+                        <div class="absolute inset-0 border border-slate-400/30"></div>
+                        <span class="relative">⟳ Clear</span>
                     </button>
-                    <div class="flex items-center gap-2">
-                        <label class="text-gray-400 text-sm">BPM:</label>
-                        <input id="tempo-slider" type="range" min="60" max="180" value="120" class="w-20">
-                        <span id="tempo-display" class="text-cyan-400 text-sm font-mono w-12">120</span>
-                    </div>
+                </div>
+                
+                <div class="flex items-center justify-center gap-3 bg-slate-800/50 rounded-lg p-3">
+                    <label class="text-gray-400 text-sm uppercase tracking-wider font-light">Tempo:</label>
+                    <input id="tempo-slider" type="range" min="60" max="180" value="120" class="w-32 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer" style="accent-color: #06b6d4;">
+                    <span id="tempo-display" class="text-cyan-400 text-sm font-mono font-bold w-12 text-right">120</span>
+                    <span class="text-gray-500 text-xs">BPM</span>
                 </div>
             </div>
         </div>
@@ -84,40 +119,64 @@
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         
         // Synth Sequencer
-        const GRID_COLS = 8;
-        const GRID_ROWS = 4;
-        const frequencies = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        const STEPS = 8;
+        const DRUM_SOUNDS = [
+            { name: 'kick', freq: 150, decay: 0.3 },
+            { name: 'hihat', freq: 8000, decay: 0.08 }
+        ];
+        const BASS_FREQS = [110, 138]; // A2, C#3
+        const LEAD_FREQS = [523.25, 659.25]; // C5, E5
         
-        let grid = Array(GRID_ROWS * GRID_COLS).fill(false);
+        let drumGrid = Array(STEPS * 2).fill(false);
+        let bassGrid = Array(STEPS * 2).fill(false);
+        let leadGrid = Array(STEPS * 2).fill(false);
         let isPlaying = false;
         let currentStep = 0;
         let tempo = 120;
         
-        // Initialize grid
-        function initGrid() {
-            const gridElement = document.getElementById('sequencer-grid');
-            gridElement.innerHTML = '';
+        // Initialize grids
+        function initGrids() {
+            // Drums
+            const drumElement = document.getElementById('drum-grid');
+            for (let i = 0; i < STEPS * 2; i++) {
+                const pad = createPad(i, drumGrid, drumElement, 'pink');
+                drumElement.appendChild(pad);
+            }
             
-            for (let row = 0; row < GRID_ROWS; row++) {
-                for (let col = 0; col < GRID_COLS; col++) {
-                    const index = row * GRID_COLS + col;
-                    const pad = document.createElement('div');
-                    pad.className = 'w-10 h-10 bg-slate-800 border border-slate-600 rounded cursor-pointer hover:border-cyan-400 transition-all';
-                    pad.dataset.index = index;
-                    pad.addEventListener('click', () => togglePad(index, pad));
-                    gridElement.appendChild(pad);
-                }
+            // Bass
+            const bassElement = document.getElementById('bass-grid');
+            for (let i = 0; i < STEPS * 2; i++) {
+                const pad = createPad(i, bassGrid, bassElement, 'cyan');
+                bassElement.appendChild(pad);
+            }
+            
+            // Lead
+            const leadElement = document.getElementById('lead-grid');
+            for (let i = 0; i < STEPS * 4; i++) {
+                const pad = createPad(i, leadGrid, leadElement, 'orange');
+                leadElement.appendChild(pad);
             }
         }
         
-        function togglePad(index, element) {
-            grid[index] = !grid[index];
-            element.classList.toggle('bg-cyan-500', grid[index]);
-            element.classList.toggle('shadow-lg', grid[index]);
-            element.classList.toggle('shadow-cyan-500/50', grid[index]);
+        function createPad(index, grid, container, color) {
+            const pad = document.createElement('div');
+            pad.className = `h-12 bg-slate-800 border border-slate-600 rounded cursor-pointer hover:border-${color}-400 transition-all relative`;
+            pad.dataset.index = index;
+            pad.dataset.color = color;
+            pad.addEventListener('click', () => togglePad(index, grid, pad, color));
+            return pad;
         }
         
-        function playNote(frequency) {
+        function togglePad(index, grid, element, color) {
+            grid[index] = !grid[index];
+            if (grid[index]) {
+                element.classList.add(`bg-${color}-500`, 'shadow-lg', `shadow-${color}-500/50`);
+            } else {
+                element.classList.remove(`bg-${color}-500`, 'shadow-lg', `shadow-${color}-500/50`);
+            }
+        }
+        
+        function playSound(frequency, duration, type = 'sine') {
             const now = audioContext.currentTime;
             const osc = audioContext.createOscillator();
             const gain = audioContext.createGain();
@@ -125,35 +184,62 @@
             osc.connect(gain);
             gain.connect(audioContext.destination);
             
-            osc.type = 'square';
+            osc.type = type;
             osc.frequency.value = frequency;
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
             
             osc.start(now);
-            osc.stop(now + 0.1);
+            osc.stop(now + duration);
         }
         
         function playStep() {
             if (!isPlaying) return;
             
-            // Play notes for current step
-            for (let row = 0; row < GRID_ROWS; row++) {
-                const index = row * GRID_COLS + currentStep;
-                if (grid[index]) {
-                    playNote(frequencies[row]);
+            // Play drums
+            for (let drum = 0; drum < 2; drum++) {
+                const index = drum * STEPS + currentStep;
+                if (drumGrid[index]) {
+                    playSound(DRUM_SOUNDS[drum].freq, DRUM_SOUNDS[drum].decay, 'sine');
                 }
             }
             
-            // Update UI
-            document.querySelectorAll('#sequencer-grid div').forEach((pad, idx) => {
-                const col = idx % GRID_COLS;
-                pad.classList.toggle('ring-2', col === currentStep);
-                pad.classList.toggle('ring-pink-500', col === currentStep);
+            // Play bass
+            for (let bass = 0; bass < 2; bass++) {
+                const index = bass * STEPS + currentStep;
+                if (bassGrid[index]) {
+                    playSound(BASS_FREQS[bass], 0.2, 'square');
+                }
+            }
+            
+            // Play lead
+            for (let lead = 0; lead < 2; lead++) {
+                const index = lead * STEPS + currentStep;
+                if (leadGrid[index]) {
+                    playSound(LEAD_FREQS[lead], 0.15, 'triangle');
+                }
+            }
+            
+            // Update UI - highlight current step with bright glow on top
+            document.querySelectorAll('#drum-grid div, #bass-grid div, #lead-grid div').forEach((pad, idx) => {
+                const stepNum = idx % STEPS;
+                if (stepNum === currentStep) {
+                    pad.style.zIndex = '10';
+                    pad.style.boxShadow = '0 0 0 3px #fff, 0 0 15px 3px #06b6d4, 0 0 30px 6px rgba(6, 182, 212, 0.6)';
+                    pad.style.outline = '2px solid #06b6d4';
+                    pad.style.outlineOffset = '2px';
+                    pad.style.transform = 'scale(1.05)';
+                } else {
+                    pad.style.zIndex = '1';
+                    pad.style.boxShadow = '';
+                    pad.style.outline = '';
+                    pad.style.outlineOffset = '';
+                    pad.style.transform = '';
+                }
             });
             
             // Move to next step
-            currentStep = (currentStep + 1) % GRID_COLS;
+            currentStep = (currentStep + 1) % STEPS;
             
             // Schedule next step
             setTimeout(playStep, (60000 / tempo) / 4);
@@ -162,22 +248,26 @@
         // Controls
         document.getElementById('play-btn').addEventListener('click', function() {
             isPlaying = !isPlaying;
-            this.textContent = isPlaying ? '⏸ Stop' : '▶ Play';
-            this.classList.toggle('from-cyan-500', !isPlaying);
-            this.classList.toggle('to-pink-500', !isPlaying);
-            this.classList.toggle('from-pink-500', isPlaying);
-            this.classList.toggle('to-orange-500', isPlaying);
+            const icon = document.getElementById('play-icon');
+            const text = document.getElementById('play-text');
             
             if (isPlaying) {
+                icon.textContent = '⏸';
+                text.textContent = 'Stop';
                 currentStep = 0;
                 playStep();
+            } else {
+                icon.textContent = '▶';
+                text.textContent = 'Play';
             }
         });
         
         document.getElementById('clear-btn').addEventListener('click', () => {
-            grid.fill(false);
-            document.querySelectorAll('#sequencer-grid div').forEach(pad => {
-                pad.classList.remove('bg-cyan-500', 'shadow-lg', 'shadow-cyan-500/50');
+            drumGrid.fill(false);
+            bassGrid.fill(false);
+            leadGrid.fill(false);
+            document.querySelectorAll('#drum-grid div, #bass-grid div, #lead-grid div').forEach(pad => {
+                pad.classList.remove('bg-pink-500', 'bg-cyan-500', 'bg-orange-500', 'shadow-lg', 'shadow-pink-500/50', 'shadow-cyan-500/50', 'shadow-orange-500/50');
             });
         });
         
@@ -198,7 +288,7 @@
         });
         
         // Initialize
-        initGrid();
+        initGrids();
     </script>
 </body>
 </html>
