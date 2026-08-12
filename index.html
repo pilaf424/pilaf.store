@@ -126,6 +126,21 @@
         </div>
     </section>
 
+    <!-- Ball Drop Music System -->
+    <section class="fade-in max-w-5xl mx-auto mt-32 mb-4 px-4 py-24 text-center">
+        <h3 class="text-4xl font-light tracking-tight mb-2 text-gray-100">ball music</h3>
+        <p class="text-gray-500 font-light text-sm mb-8">click inside the circle to drop balls, they bounce and play music</p>
+        
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-slate-900/50 border border-cyan-500/30 rounded-xl p-8 backdrop-blur">
+                <div class="flex flex-col items-center gap-6">
+                    <!-- Canvas for ball physics -->
+                    <canvas id="ball-canvas" width="400" height="400" class="border-2 border-cyan-500/50 rounded-lg bg-black/30 cursor-crosshair"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Footer -->
     <footer class="py-12 text-center border-t border-cyan-500/20 mt-16">
         <div class="max-w-6xl mx-auto px-4">
@@ -410,6 +425,185 @@
         
         // Initialize
         initGrids();
+        
+        // Ball Drop Physics System
+        const canvas = document.getElementById('ball-canvas');
+        const ctx = canvas.getContext('2d');
+        const GRAVITY = 0.25;
+        const DAMPING = 0.96;
+        const FRICTION = 0.995;
+        
+        let balls = [];
+        let ballAnimationId = null;
+        let animating = false;
+        
+        const BALL_COLORS = [
+            { color: '#ec4899', freq: 523.25 },   // Pink - C5
+            { color: '#06b6d4', freq: 659.25 },   // Cyan - E5
+            { color: '#f97316', freq: 783.99 },   // Orange - G5
+            { color: '#a855f7', freq: 261.63 }    // Purple - C4
+        ];
+        
+        class Ball {
+            constructor(x, y, colorIndex) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = -5;
+                this.radius = 8;
+                this.colorIndex = colorIndex;
+                this.lastCollisionZone = -1;
+                this.lastCollisionTime = 0;
+                this.createdTime = Date.now();
+            }
+            
+            update() {
+                // Gravity
+                this.vy += GRAVITY;
+                
+                // Velocity
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Apply friction
+                this.vx *= FRICTION;
+                
+                // Container center
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const containerRadius = 150;
+                
+                // Distance from center
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Wall collision (circular boundary)
+                if (dist + this.radius > containerRadius) {
+                    // Push ball back inside
+                    const angle = Math.atan2(dy, dx);
+                    this.x = centerX + Math.cos(angle) * (containerRadius - this.radius);
+                    this.y = centerY + Math.sin(angle) * (containerRadius - this.radius);
+                    
+                    // Bounce
+                    const vx = this.vx;
+                    const vy = this.vy;
+                    const dotProduct = vx * Math.cos(angle) + vy * Math.sin(angle);
+                    this.vx = (vx - 2 * dotProduct * Math.cos(angle)) * DAMPING;
+                    this.vy = (vy - 2 * dotProduct * Math.sin(angle)) * DAMPING;
+                    
+                    // Check collision zones
+                    const zoneAngle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+                    const zoneIndex = Math.floor((zoneAngle + 45) / 90) % 4;
+                    
+                    if (zoneIndex !== this.lastCollisionZone) {
+                        this.lastCollisionZone = zoneIndex;
+                        this.lastCollisionTime = Date.now();
+                        playSound(BALL_COLORS[zoneIndex].freq, 0.15, 'sine');
+                    }
+                }
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = BALL_COLORS[this.colorIndex].color;
+                ctx.fill();
+                ctx.strokeStyle = BALL_COLORS[this.colorIndex].color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            
+            isAlive() {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const dx = this.x - centerX;
+                const dy = this.y - centerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                const age = Date.now() - this.createdTime;
+                
+                // Remove if too slow and fell out, or older than 20 seconds
+                return dist + this.radius < 160 && speed > 0.01 && age < 20000;
+            }
+        }
+        
+        function drawBallContainer() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const containerRadius = 150;
+            
+            // Draw container circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(6, 182, 212, 0.05)';
+            ctx.fill();
+            
+            // Draw collision zones
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            for (let i = 0; i < 4; i++) {
+                const angle = (i * Math.PI / 2) - Math.PI / 2;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + Math.cos(angle) * containerRadius, centerY + Math.sin(angle) * containerRadius);
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+        }
+        
+        function animateBalls() {
+            // Clear canvas
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawBallContainer();
+            
+            // Update and draw balls
+            balls = balls.filter(ball => ball.isAlive());
+            balls.forEach(ball => {
+                ball.update();
+                ball.draw();
+            });
+            
+            // Continue animation
+            ballAnimationId = requestAnimationFrame(animateBalls);
+        }
+        
+        function startAnimation() {
+            if (!animating) {
+                animating = true;
+                animateBalls();
+            }
+        }
+        
+        // Canvas click to drop ball
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Only drop ball if clicked inside the circle
+            if (dist < 150) {
+                const colorIndex = Math.floor(Math.random() * BALL_COLORS.length);
+                const ball = new Ball(x, y, colorIndex);
+                balls.push(ball);
+                startAnimation();
+            }
+        });
+        
+        // Initial draw
+        drawBallContainer();
     </script>
 </body>
 </html>
