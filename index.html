@@ -141,8 +141,8 @@
         // Synth Sequencer
         const STEPS = 8;
         const DRUM_SOUNDS = [
-            { name: 'kick', freq: 150, decay: 0.3 },
-            { name: 'hihat', freq: 8000, decay: 0.08 }
+            { name: 'kick', freq: 80, decay: 0.4, type: 'square' },
+            { name: 'hihat', freq: 5000, decay: 0.06, type: 'triangle' }
         ];
         const BASS_FREQS = [110, 138]; // A2, C#3
         const LEAD_FREQS = [523.25, 659.25]; // C5, E5
@@ -225,7 +225,7 @@
             }
         }
         
-        function playSound(frequency, duration, type = 'sine') {
+        function playSound(frequency, duration, type = 'sine', isPercussive = false) {
             const now = audioContext.currentTime;
             const osc = audioContext.createOscillator();
             const gain = audioContext.createGain();
@@ -235,8 +235,17 @@
             
             osc.type = type;
             osc.frequency.value = frequency;
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+            
+            if (isPercussive) {
+                // Sharp attack, quick decay for drums
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+            } else {
+                // Gentler attack for keys
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+            }
             
             osc.start(now);
             osc.stop(now + duration);
@@ -249,7 +258,8 @@
             for (let drum = 0; drum < 2; drum++) {
                 const index = drum * STEPS + currentStep;
                 if (drumGrid[index]) {
-                    playSound(DRUM_SOUNDS[drum].freq, DRUM_SOUNDS[drum].decay, 'sine');
+                    const sound = DRUM_SOUNDS[drum];
+                    playSound(sound.freq, sound.decay, sound.type || 'sine', true);
                 }
             }
             
@@ -273,7 +283,7 @@
             for (let key = 0; key < 2; key++) {
                 const index = key * STEPS + currentStep;
                 if (keysGrid[index]) {
-                    playSound(KEYS_FREQS[key], 0.25, 'triangle');
+                    playSound(KEYS_FREQS[key], 0.4, 'sine', false);
                 }
             }
             
