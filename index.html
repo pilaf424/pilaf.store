@@ -41,7 +41,34 @@
     <section class="fade-in max-w-5xl mx-auto mt-20 mb-4 px-4 py-24 text-center" id="home">
         <h1 class="text-6xl md:text-7xl font-light tracking-tight mb-6 text-gray-100">Custom Synth</h1>
         <h2 class="text-6xl md:text-7xl font-light tracking-tight mb-8 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-orange-500">Experiments</h2>
-        <p class="text-xl md:text-2xl text-gray-400 font-light max-w-2xl mx-auto">Personal explorations in electronic sound design. Currently under construction.</p>
+        <p class="text-xl md:text-2xl text-gray-400 font-light max-w-2xl mx-auto mb-12">Personal explorations in electronic sound design. Currently under construction.</p>
+        
+        <!-- Synth Sequencer -->
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-slate-900/50 border border-cyan-500/30 rounded-xl p-6 backdrop-blur">
+                <h3 class="text-cyan-400 text-lg font-light mb-4">step sequencer</h3>
+                
+                <!-- Grid -->
+                <div class="bg-black/50 p-4 rounded-lg mb-4 overflow-x-auto">
+                    <div id="sequencer-grid" class="grid gap-2" style="grid-template-columns: repeat(8, minmax(40px, 1fr)); width: fit-content; margin: 0 auto;"></div>
+                </div>
+                
+                <!-- Controls -->
+                <div class="flex justify-center gap-4 flex-wrap">
+                    <button id="play-btn" class="px-6 py-2 bg-gradient-to-r from-cyan-500 to-pink-500 text-white font-medium rounded-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all">
+                        ▶ Play
+                    </button>
+                    <button id="clear-btn" class="px-6 py-2 bg-slate-700 text-gray-300 font-medium rounded-lg hover:bg-slate-600 transition-all">
+                        Clear
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <label class="text-gray-400 text-sm">BPM:</label>
+                        <input id="tempo-slider" type="range" min="60" max="180" value="120" class="w-20">
+                        <span id="tempo-display" class="text-cyan-400 text-sm font-mono w-12">120</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- Footer -->
@@ -53,6 +80,112 @@
     </footer>
 
     <script>
+        // Web Audio API Setup
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Synth Sequencer
+        const GRID_COLS = 8;
+        const GRID_ROWS = 4;
+        const frequencies = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        
+        let grid = Array(GRID_ROWS * GRID_COLS).fill(false);
+        let isPlaying = false;
+        let currentStep = 0;
+        let tempo = 120;
+        
+        // Initialize grid
+        function initGrid() {
+            const gridElement = document.getElementById('sequencer-grid');
+            gridElement.innerHTML = '';
+            
+            for (let row = 0; row < GRID_ROWS; row++) {
+                for (let col = 0; col < GRID_COLS; col++) {
+                    const index = row * GRID_COLS + col;
+                    const pad = document.createElement('div');
+                    pad.className = 'w-10 h-10 bg-slate-800 border border-slate-600 rounded cursor-pointer hover:border-cyan-400 transition-all';
+                    pad.dataset.index = index;
+                    pad.addEventListener('click', () => togglePad(index, pad));
+                    gridElement.appendChild(pad);
+                }
+            }
+        }
+        
+        function togglePad(index, element) {
+            grid[index] = !grid[index];
+            element.classList.toggle('bg-cyan-500', grid[index]);
+            element.classList.toggle('shadow-lg', grid[index]);
+            element.classList.toggle('shadow-cyan-500/50', grid[index]);
+        }
+        
+        function playNote(frequency) {
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.type = 'square';
+            osc.frequency.value = frequency;
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            
+            osc.start(now);
+            osc.stop(now + 0.1);
+        }
+        
+        function playStep() {
+            if (!isPlaying) return;
+            
+            // Play notes for current step
+            for (let row = 0; row < GRID_ROWS; row++) {
+                const index = row * GRID_COLS + currentStep;
+                if (grid[index]) {
+                    playNote(frequencies[row]);
+                }
+            }
+            
+            // Update UI
+            document.querySelectorAll('#sequencer-grid div').forEach((pad, idx) => {
+                const col = idx % GRID_COLS;
+                pad.classList.toggle('ring-2', col === currentStep);
+                pad.classList.toggle('ring-pink-500', col === currentStep);
+            });
+            
+            // Move to next step
+            currentStep = (currentStep + 1) % GRID_COLS;
+            
+            // Schedule next step
+            setTimeout(playStep, (60000 / tempo) / 4);
+        }
+        
+        // Controls
+        document.getElementById('play-btn').addEventListener('click', function() {
+            isPlaying = !isPlaying;
+            this.textContent = isPlaying ? '⏸ Stop' : '▶ Play';
+            this.classList.toggle('from-cyan-500', !isPlaying);
+            this.classList.toggle('to-pink-500', !isPlaying);
+            this.classList.toggle('from-pink-500', isPlaying);
+            this.classList.toggle('to-orange-500', isPlaying);
+            
+            if (isPlaying) {
+                currentStep = 0;
+                playStep();
+            }
+        });
+        
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            grid.fill(false);
+            document.querySelectorAll('#sequencer-grid div').forEach(pad => {
+                pad.classList.remove('bg-cyan-500', 'shadow-lg', 'shadow-cyan-500/50');
+            });
+        });
+        
+        document.getElementById('tempo-slider').addEventListener('input', (e) => {
+            tempo = parseInt(e.target.value);
+            document.getElementById('tempo-display').textContent = tempo;
+        });
+        
         // Smooth scrolling for all anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -63,6 +196,9 @@
                 }
             });
         });
+        
+        // Initialize
+        initGrid();
     </script>
 </body>
 </html>
