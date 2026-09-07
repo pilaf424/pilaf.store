@@ -10,44 +10,47 @@
   const worldWidth = 2540, floor = 380;
   const platforms = [{x:290,y:300,w:135},{x:540,y:238,w:135},{x:835,y:296,w:155},{x:1170,y:265,w:140},{x:1470,y:300,w:150},{x:1765,y:245,w:145},{x:2050,y:298,w:145}];
   const positions = [[200,337],[355,261],[607,199],[910,257],[1240,226],[1545,261],[1840,206],[2125,259]];
-  const songStyles = [
-    {name:'Sunroom shuffle',scale:[0,2,4,7,9],chords:[[0,4,7],[5,9,12],[9,12,16],[7,11,14]],bpm:104,swing:.13,voice:'triangle'},
-    {name:'Moonlit tapes',scale:[0,3,5,7,10],chords:[[0,3,7],[8,12,15],[3,7,10],[10,14,17]],bpm:86,swing:.08,voice:'sine'},
-    {name:'Pocket disco',scale:[0,2,4,7,9],chords:[[0,4,7],[9,12,16],[5,9,12],[7,11,14]],bpm:120,swing:0,voice:'triangle'},
-    {name:'Moss & starlight',scale:[0,3,5,7,10],chords:[[0,3,7],[5,8,12],[8,12,15],[7,10,14]],bpm:94,swing:.18,voice:'sine'}
-  ];
-  const motifs = [[0,1,2,4,3,2,1,0],[0,2,1,3,4,3,2,1],[2,1,0,2,3,4,3,0],[0,3,2,1,2,4,1,0]];
+  const composer = SoundGardenComposer, songStyles = composer.styles;
   const pick = list => list[Math.floor(Math.random()*list.length)];
   const frequency = midi => 440 * 2 ** ((midi-69)/12);
-  let song, pitches, pausedFrom = 'playing', partyTime = 0, hasStarted = false;
+  let song, pitches, section, pausedFrom = 'playing', partyTime = 0, hasStarted = false;
+  let characterBag = [], styleBag = [];
   const characters = [
     {id:'onigiri',name:'Onigiri Listener'},
     {id:'cat',name:'Cat Nap Keyboard'},
     {id:'fox',name:'Fox Pocket Sampler'},
     {id:'rabbit',name:'Moon Rabbit Theremin'},
-    {id:'axolotl',name:'Axolotl Ribbon Slide'}
+    {id:'axolotl',name:'Axolotl Ribbon Slide'},
+    {id:'shrimp',name:'Tempura Microphone'},
+    {id:'crane',name:'Crane Note Delivery'},
+    {id:'tanuki',name:'Tanuki Tape Courier'},
+    {id:'robot',name:'Pocket Sequencer Robot'},
+    {id:'origami',name:'Origami Mixer Bird'}
   ];
-  let activeCharacter = characters[0];
+  let activeCharacter = characters[5];
   let notes, player, camera = 0, phase = 'ready', count = 0, last = 0, elapsed = 0;
   let audio, master, audioBus, noiseBuffer, muted = true, beat = 0, nextBeat = 0, jumpRequested = false, jumpHeld = false;
   const sources = new Set();
   let outputVolume = Number($('volume').value) / 100;
   const keys = new Set(), touch = new Set();
+  function drawFromBag(items,bag,current) {
+    if(!bag.length) bag.push(...items);
+    const choices=bag.filter(item=>item!==current);
+    const chosen=pick(choices.length?choices:bag);
+    bag.splice(bag.indexOf(chosen),1);return chosen;
+  }
   function composeSong() {
-    const style = pick(songStyles.filter(style => style !== song?.style));
-    const root = pick([48,50,53,55]);
-    const motif = [...pick(motifs)];
-    motif[3] = pick([2,3,4]); motif[6] = pick([0,1,2,3]);
-    song = {style,root,motif,bpm:style.bpm+pick([-4,0,4])};
-    pitches = motif.map(degree => frequency(root+12+style.scale[degree]));
-    $('song-name').textContent = `${style.name} · ${song.bpm} BPM`;
-    $('finished-title').textContent = style.name;
+    const style=drawFromBag(songStyles,styleBag,song?.style);
+    const seed=crypto.getRandomValues(new Uint32Array(1))[0];
+    song=composer.createSong(style,seed);pitches=song.pitches;
+    $('song-name').textContent = `${song.title} · ${style.genre} · ${song.bpm} BPM`;
+    $('finished-title').textContent = song.title;
   }
   function stopVoices() {
     for(const source of sources) {try { source.stop(); } catch { /* Already ended. */ }}
     sources.clear();
   }
-  function resetTransport() { stopVoices(); beat = 0; partyTime = 0; nextBeat = audio ? audio.currentTime+.08 : 0; }
+  function resetTransport() { stopVoices(); beat = 0; section = null; partyTime = 0; nextBeat = audio ? audio.currentTime+.08 : 0; $('song-evolution').textContent='Your melody is just the beginning. Stay for the next variation.'; }
   function reset(changeCharacter = true) {
     phase = 'ready';
     composeSong(); resetTransport();
@@ -55,9 +58,8 @@
     $('restart').textContent = 'Restart ↺';
     document.querySelector('.touch-controls').hidden = false;
     if(changeCharacter) {
-      const choices = characters.filter(character => character !== activeCharacter);
-      activeCharacter = choices[Math.floor(Math.random() * choices.length)];
-    }
+      activeCharacter = drawFromBag(characters,characterBag,activeCharacter);
+    } else characterBag=characters.filter(character=>character!==activeCharacter);
     $('character-name').textContent = `Playing as ${activeCharacter.name}`;
     $('overlay-kicker').textContent = `Meet the ${activeCharacter.name}`;
     notes = positions.map(([x,y]) => ({x,y,found:false}));
@@ -99,15 +101,17 @@
     gain.gain.setValueAtTime(0, when); gain.gain.linearRampToValueAtTime(volume, when + .012);
     gain.gain.linearRampToValueAtTime(volume * .65, when + length * .6);
     gain.gain.exponentialRampToValueAtTime(.001, when + length);
-    oscillator.connect(gain); gain.connect(audioBus); sources.add(oscillator); oscillator.start(when); oscillator.stop(when + length + .025);
-    oscillator.onended = () => { sources.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
+    let filter;
+    if(type==='square') {filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=2600;oscillator.connect(filter);filter.connect(gain);} else oscillator.connect(gain);
+    gain.connect(audioBus); sources.add(oscillator); oscillator.start(when); oscillator.stop(when + length + .025);
+    oscillator.onended = () => { sources.delete(oscillator); oscillator.disconnect(); filter?.disconnect(); gain.disconnect(); };
   }
-  function drum(kind, when) {
+  function drum(kind, when, levelScale=1) {
     if(!audio || muted || audio.state !== 'running') return;
     const gain = audio.createGain(); gain.connect(audioBus);
     let source, filter;
     const length = kind === 'hat' ? .055 : .16;
-    const level = kind === 'kick' ? .32 : kind === 'snare' ? .12 : .055;
+    const level = (kind === 'kick' ? .32 : kind === 'snare' ? .12 : .055)*levelScale;
     if(kind === 'kick') {
       source = audio.createOscillator(); source.frequency.setValueAtTime(145,when); source.frequency.exponentialRampToValueAtTime(48,when+.12); source.connect(gain);
     } else {
@@ -126,17 +130,34 @@
     while(nextBeat < audio.currentTime + .1) {
       const slot = beat % 8;
       const bar = Math.floor(beat/8)%4;
-      const chord = song.style.chords[bar];
+      const sectionIndex=Math.floor(beat/32);
+      if(!section || section.index!==sectionIndex) {
+        section=composer.sectionFor(song,sectionIndex);
+        if(phase==='won') $('song-evolution').textContent=`${section.form} · variation ${sectionIndex+1} · a new turn every four bars`;
+      }
+      const chord = section.chords[bar], style=song.style, groove=style.groove;
       const when = nextBeat + (slot%2 ? song.style.swing*step : 0);
-      if(notes[slot].found) tone(pitches[slot],when,step*.85,phase === 'won' ? .22 : .3,song.style.voice);
+      const leadLevel=(style.voice==='square'?.13:.22)*section.accents[slot];
+      const pitch=phase==='won'?section.melody[slot]:pitches[slot];
+      if(notes[slot].found && (phase!=='won'||section.gate[slot])) {
+        tone(pitch,when,step*(groove==='ambient'?1.6:.8),phase==='won'?leadLevel:leadLevel*1.2,style.voice);
+        if(style.echo) tone(pitch,when+step*3,step*.7,leadLevel*style.echo,'sine');
+        if(groove==='mallets') tone(pitch*2.01,when,.1,leadLevel*.22,'sine');
+      }
       if(phase === 'won') {
-        // The speaker unlocks a four-bar arrangement around the collected melody.
-        if(slot === 0) for(const note of chord) tone(frequency(song.root+note),when,step*7.5,.075,'sine');
-        if(slot%2 === 0) tone(frequency(song.root-12+chord[slot===6?2:0]),when,step*1.4,.22,'triangle');
-        if(slot === 0 || slot === 4 || (song.style.name === 'Pocket disco' && slot === 6)) drum('kick',when);
-        if(slot === 2 || slot === 6) drum('snare',when);
-        drum('hat',when);
-        if(bar%2 && slot%2) tone(frequency(song.root+24+chord[(slot>>1)%3]),when,step*.6,.075,'sine');
+        const offbeat=['disco','dub','bossa'].includes(groove);
+        if(offbeat ? slot%2===1 : slot===0) for(const note of chord) tone(frequency(song.root+note),when,step*(offbeat?.45:7.4),offbeat?.055:.065,'sine');
+        if(style.bass.includes(slot) && (!section.sparse || slot===0)) tone(frequency(song.root-12+chord[(slot+bar)%3]+section.bassOctave),when,step*(groove==='dub'?2:1.1),.2,'triangle');
+        if(!section.sparse || bar>=2) {
+          if(style.kicks.includes(slot)) drum('kick',when,['bossa','mallets'].includes(groove)?.6:1);
+          if(style.snares.includes(slot)) {
+            if(['bossa','mallets'].includes(groove)) tone(groove==='bossa'?1100:740,when,.045,.09,'triangle');
+            else drum('snare',when);
+          }
+          if(groove!=='ambient' && (groove!=='dub' || slot%2)) drum('hat',when);
+          if(bar===3 && slot===section.fill && groove!=='ambient') drum('snare',when+step*.5);
+        }
+        if((section.bright || groove==='chip' || groove==='mallets') && slot%2) tone(frequency(song.root+24+chord[section.counter[slot]]),when,step*.5,.055,groove==='chip'?'square':'sine');
       } else if(slot%2 === 0) tone(frequency(song.root),when,.13,.12,'triangle');
       nextBeat += step; beat++;
     }
@@ -247,7 +268,7 @@
     if(player.x+44>2340 && player.x<2425 && player.y+52>=284) {
       if(count === 8) {
         phase = 'won'; resetTransport(); keys.clear(); touch.clear();
-        $('status').textContent = `Your finished song: ${song.style.name}. All five friends are playing along!`;
+        $('status').textContent = `Your finished song: ${song.title}. All ten friends are playing along!`;
         $('overlay').hidden = true; $('party-caption').hidden = false; $('replay').hidden = false;
         $('restart').textContent = 'New song ↺';
         document.querySelector('.touch-controls').hidden = true;
@@ -266,6 +287,7 @@
   function ellipse(x,y,rx,ry,fill,stroke) {ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
   function round(x,y,w,h,r,fill,stroke) {ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
   function label(text,x,y,size=10,color=ink) {ctx.fillStyle=color;ctx.font=`${size}px ui-monospace, monospace`;ctx.fillText(text,x,y);}
+  function polygon(points,fill,stroke) {ctx.beginPath();ctx.moveTo(...points[0]);for(const point of points.slice(1))ctx.lineTo(...point);ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.8;ctx.stroke();}}
   function drawBunting(width) {
     ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(width/2,53,width,9);ctx.strokeStyle='#6e876a';ctx.lineWidth=1.4;ctx.stroke();
     const bulbs = Math.max(7,Math.floor(width/80));
@@ -339,7 +361,6 @@
       for(const x of [1070,1110,1150,1190,1230])line(x,223+Math.abs(1150-x)*.45,x,floor,'#a6b793',1);
       line(1030,278,1270,278,'#a6b793',1);line(1030,332,1270,332,'#a6b793',1);
       for(const x of [1058,1134,1210]){round(x,357,27,23,3,'#b9b992');plant(x+14,357,1.4,'#8caa79');}
-      round(1093,267,117,21,3,'#e0e4caaa');label('THE PATCH HOUSE',1105,281,9,'#8b9f77');
     }
     if(camera+scene.width>2220) {
       line(2255,floor,2255,207,'#8fa17c',3);line(2490,floor,2490,207,'#8fa17c',3);
@@ -364,6 +385,40 @@
       line(x,floor,x,floor-124,'#69845d',3);ctx.beginPath();ctx.moveTo(x,floor-124);ctx.quadraticCurveTo(x+18,floor-139,x+33,floor-119);ctx.strokeStyle='#69845d';ctx.lineWidth=2;ctx.stroke();
       ellipse(x+32,floor-101,19,25,'#f3dd9520');round(x+23,floor-119,18,30,6,'#e5ce8e','#8c9869');line(x+24,floor-106,x+40,floor-106,'#c8b275',1);
     }
+    for(const resident of [{x:230,kind:'sprout'},{x:665,kind:'caterpillar'},{x:1055,kind:'sprout'},{x:1370,kind:'caterpillar'},{x:1660,kind:'sprout'},{x:2140,kind:'caterpillar'}]) {
+      if(resident.x>camera-100 && resident.x<camera+scene.width+100) drawResident(resident);
+    }
+  }
+  function drawResident({x,kind}) {
+    const still=motionPreference.matches,near=Math.abs(player.x-x)<110;
+    const time=still?0:elapsed, friendly=near||count>=6;
+    ctx.save();ctx.translate(x+(kind==='caterpillar'?Math.sin(time*.35+x)*12:0),floor-2);
+    ctx.globalAlpha=.84;ctx.lineWidth=1.5;
+    if(kind==='sprout') {
+      const sway=still?0:Math.sin(time*(near?2.4:1)+x)*.07;ctx.rotate(sway);
+      line(-7,0,-7,-10,'#778e69',1.5);line(7,0,7,-10,'#778e69',1.5);
+      round(-16,-40,32,30,7,friendly?'#c3d5a6':'#b7c9a2','#718b63');
+      line(-15,-32,15,-32,'#879f75',1);line(-10,-28,-10,-19,'#8b9f74',1);
+      line(0,-40,0,-54,'#789767',1.7);
+      ctx.save();ctx.translate(-9,-51);ctx.rotate(.35);ellipse(0,0,11,4,'#9db986','#718b63');ctx.restore();
+      ctx.save();ctx.translate(9,-56);ctx.rotate(-.4);ellipse(0,0,12,4,'#c1d3a4','#718b63');ctx.restore();
+      ellipse(-5,-24,1.3,1.6,ink);ellipse(6,-24,1.3,1.6,ink);
+      ctx.beginPath();ctx.arc(1,-21,friendly?3.3:2.4,0,Math.PI);ctx.strokeStyle='#59764e';ctx.stroke();
+    } else {
+      for(let i=0;i<2;i++) {
+        const y=-13+(still?0:Math.sin(time*3+i)*2),bx=-29+i*21;
+        line(bx-5,y+8,bx-7,0,'#859675',1.4);line(bx+5,y+8,bx+7,0,'#859675',1.4);
+        round(bx-10,y-8,21,16,7,'#d3c9a2','#83936b');
+        for(let band=0;band<3;band++)line(bx-5+band*5,y-7,bx-5+band*5,y+7,['#a9896e','#9eaf7e','#c3a967'][band],2);
+      }
+      ellipse(16,-19,13,13,friendly?'#c5d7aa':'#c1cfa9','#7a9269');
+      line(10,-30,7,-40,'#83936b',1.3);line(22,-31,26,-42,'#83936b',1.3);
+      ellipse(7,-40,2,2,'#c7ad71');ellipse(26,-42,2,2,'#c7ad71');
+      ellipse(12,-21,1.4,1.7,ink);ellipse(21,-21,1.4,1.7,ink);
+      ctx.beginPath();ctx.arc(17,-17,3,0,Math.PI);ctx.strokeStyle='#59764e';ctx.stroke();
+    }
+    if(near) {ctx.globalAlpha=.65;ellipse(kind==='sprout'?26:37,-51,3,2,'#a58b55');line(kind==='sprout'?29:40,-51,kind==='sprout'?29:40,-61,'#a58b55',1.3);}
+    ctx.restore();
   }
   function drawSpeaker() {
     const awake = count===8;
@@ -389,6 +444,7 @@
     const stride = !still && pose.grounded && Math.abs(pose.vx)>10 ? Math.sin(elapsed*18)*2 : 0;
     ellipse(-10-stride,25,7,3,ink);ellipse(11+stride,25,7,3,ink);
     const kind = info.id;
+    if(['shrimp','crane','origami'].includes(kind)) ctx.scale(pose.face,1);
     if(kind === 'onigiri') {
       ctx.beginPath();ctx.moveTo(-22,16);ctx.quadraticCurveTo(-30,12,-19,-5);ctx.lineTo(-7,-24);ctx.quadraticCurveTo(0,-34,8,-23);ctx.lineTo(25,9);ctx.quadraticCurveTo(31,22,15,23);ctx.lineTo(-14,23);ctx.closePath();ctx.fillStyle=paper;ctx.fill();ctx.strokeStyle=ink;ctx.lineWidth=2.4;ctx.stroke();
       round(-9,9,18,15,3,green);
@@ -415,6 +471,49 @@
       ellipse(0,3,23,22,paper,ink);ellipse(23,19,6,6,paper,ink);
       round(-13,13,26,12,3,'#b9c8a6',ink);line(11,13,11,-1,ink,2);
       ellipse(-6,18,3,3,'#e1cca0');
+    } else if(kind === 'shrimp') {
+      // Craggy tempura batter, a curved shrimp body, and a tiny singing mic.
+      ctx.beginPath();ctx.moveTo(-23,-21);ctx.lineTo(-17,-29);ctx.lineTo(-9,-25);ctx.lineTo(-3,-31);ctx.lineTo(5,-26);ctx.lineTo(14,-27);ctx.lineTo(17,-20);
+      ctx.bezierCurveTo(39,2,22,21,2,26);ctx.lineTo(-7,18);ctx.bezierCurveTo(11,8,10,-2,-3,-9);ctx.lineTo(-12,-7);ctx.lineTo(-16,-14);ctx.lineTo(-24,-14);ctx.closePath();ctx.fillStyle='#e8cd89';ctx.fill();ctx.strokeStyle=ink;ctx.lineWidth=2;ctx.stroke();
+      polygon([[-6,16],[-18,18],[-12,27],[-1,25],[7,30],[12,22],[2,18]],'#d59a79',ink);
+      for(const [x,y] of [[17,-14],[21,-4],[16,6]])line(x,y,x+3,y+3,'#c2a066',1.4);
+      ellipse(-1,-18,1.6,2,ink);ellipse(10,-16,1.6,2,ink);
+      ctx.beginPath();ctx.arc(4,-12,3,0,Math.PI);ctx.strokeStyle=ink;ctx.stroke();
+      line(-2,3,-22,9,ink,1.6);round(-33,-6,12,20,5,'#ced4b5',ink);
+      for(let i=0;i<3;i++)line(-30,-1+i*4,-24,-1+i*4,'#879975',1);
+      line(-27,14,-27,23,ink,1.5);
+    } else if(kind === 'crane') {
+      ellipse(-6,8,21,13,paper,ink);polygon([[-24,6],[-32,16],[-17,14]],'#bec9ae',ink);
+      ctx.beginPath();ctx.moveTo(0,9);ctx.bezierCurveTo(19,6,3,-21,14,-27);ctx.bezierCurveTo(24,-33,30,-15,17,-9);ctx.lineTo(17,10);ctx.closePath();ctx.fillStyle=paper;ctx.fill();ctx.strokeStyle=ink;ctx.lineWidth=2;ctx.stroke();
+      ellipse(18,-26,5,2,'#bf8772');polygon([[25,-22],[39,-17],[25,-16]],'#d0b078',ink);
+      ellipse(20,-22,1.5,1.8,ink);
+      ctx.beginPath();ctx.moveTo(-19,5);ctx.quadraticCurveTo(-9,20,4,6);ctx.strokeStyle='#7a9270';ctx.lineWidth=1.6;ctx.stroke();
+      line(37,-17,37,5,'#748e66',1.3);ellipse(33,8,4,3,green);line(37,6,37,-3,green,1.3);
+      line(-10,19,-10,26,ink,1.5);line(4,19,5,26,ink,1.5);
+    } else if(kind === 'tanuki') {
+      ctx.save();ctx.translate(-25,12);ctx.rotate(-.4);ellipse(-5,0,16,8,'#aa9172',ink);line(-9,-7,-9,7,'#766a52',4);line(0,-7,0,7,'#766a52',4);ctx.restore();
+      ellipse(-17,-20,9,9,'#ae9575',ink);ellipse(17,-20,9,9,'#ae9575',ink);
+      ellipse(-17,-20,4,4,'#d2b697');ellipse(17,-20,4,4,'#d2b697');
+      ellipse(0,1,25,23,'#c1a482',ink);ellipse(0,9,15,12,'#f0dfbe');
+      for(const x of [-9,9]){ellipse(x,-3,8,6,'#7c6c56');ellipse(x,-3,2.8,2.8,paper);ellipse(x+1,-3,1.3,1.7,ink);}
+      ellipse(0,3,2,1.5,ink);
+      round(-21,12,42,15,3,'#e3d9b9',ink);round(-15,15,30,7,2,'#adba96',ink);ellipse(-9,18.5,3,3,paper,ink);ellipse(9,18.5,3,3,paper,ink);
+    } else if(kind === 'robot') {
+      line(0,-24,0,-36,ink,2);ellipse(0,-37,4,4,'#d6bb78',ink);
+      round(-30,-10,7,14,3,'#a8b99a',ink);round(23,-10,7,14,3,'#a8b99a',ink);
+      round(-23,-24,46,32,7,'#c7d6b9',ink);round(-17,-17,34,17,4,paper,'#91a883');
+      for(const x of [-9,9]){ellipse(x,-9,4,4,'#a8bca0',ink);ellipse(x,-9,1.5,2,ink);}
+      round(-18,11,36,15,3,'#d4dabe',ink);
+      for(let i=0;i<4;i++)round(-13+i*8,15,5,5,1,i===Math.floor(elapsed*2)%4&&!still?'#d2ac61':'#adc198',ink);
+      for(const side of [-1,1]){line(side*19,16,side*29,8,ink,1.8);line(side*29,8,side*29,-1,ink,1.5);line(side*29,-1,side*34,-5,ink,1.4);line(side*29,-1,side*25,-5,ink,1.4);}
+    } else if(kind === 'origami') {
+      const flap=still?0:Math.sin(elapsed*3)*3;
+      polygon([[-6,15],[-34,4],[-12,0],[-7,-30-flap],[9,-10],[21,-24],[25,-8],[37,-2],[20,0],[11,15]],'#e9e7ce',ink);
+      polygon([[-7,-30-flap],[-12,0],[9,-10]],'#b6c7a7',ink);
+      line(-34,4,-6,6,'#819875',1);line(-6,6,9,-10,'#819875',1);line(-6,6,-6,15,'#819875',1);
+      ellipse(21,-12,1.5,1.8,ink);
+      round(-19,18,38,11,2,'#cfdbc0',ink);
+      for(let i=0;i<4;i++){line(-12+i*8,20,-12+i*8,27,'#7f9770',1);round(-14+i*8,22+(i%2),4,2,1,ink);}
     } else {
       for(const side of [-1,1])for(let i=0;i<3;i++) {
         const y=-12+i*11;line(side*18,y+3,side*(29+(i===1?4:0)),y-4,'#9c6968',3);
@@ -424,6 +523,7 @@
       ctx.beginPath();ctx.moveTo(-20,17);ctx.bezierCurveTo(-5,32,16,9,28,22);ctx.strokeStyle=green;ctx.lineWidth=5;ctx.stroke();
       ellipse(-14,7,4,2,'#c9918c');ellipse(14,7,4,2,'#c9918c');
     }
+    if(['shrimp','crane','tanuki','robot','origami'].includes(kind)) {ctx.restore();return;}
     if(kind === 'cat' || (!still && elapsed%5.7>5.52)) {
       line(-10+pose.face*2,-1,-5+pose.face*2,1,ink,2);line(5+pose.face*2,1,10+pose.face*2,-1,ink,2);
     } else {
@@ -457,10 +557,13 @@
       ellipse(x+24,compact?359:286,7,7,ink);
     }
     characters.forEach((friend,i) => {
-      const x = compact ? (i<3 ? width*(.2+i*.3) : width*(.35+(i-3)*.3)) : width*(.18+i*.16);
-      const base = compact ? (i<3?237:345) : 318;
+      const row=compact?(i<4?0:i<7?1:2):Math.floor(i/5);
+      const column=compact?(i<4?i:i<7?i-4:i-7):i%5;
+      const columns=compact?(row===0?4:3):5;
+      const x=width*(.12+(column+.5)*.76/columns);
+      const base=compact?200+row*86:238+row*112;
       const hop = still ? 0 : Math.abs(Math.sin(pulse/2+i*.7))*14;
-      const scale = compact ? 1.25 : 1.7;
+      const scale = compact ? .88 : 1.28;
       ellipse(x,base+scale*25,25,4,'#243e321c');
       character(friend,{x:x-22,y:base-hop-26,face:i%2?-1:1,grounded:false,vx:0},still?0:Math.sin(pulse/2+i)*.1,scale,still);
     });
