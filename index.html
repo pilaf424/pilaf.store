@@ -23,14 +23,15 @@
       <div class="section-heading"><div><p class="eyebrow">The playground / experiment 01</p><h2 id="game-title">A little out of tune.</h2></div><p><span id="song-name">A new song every walk</span><br><span id="character-name">Playing as Onigiri Listener</span></p></div>
       <div class="game-shell">
         <div class="game-bar"><span class="game-name"><span class="status-dot"></span> SOUND WALK</span><span id="score">00 / 08 notes</span><button id="sound" type="button" aria-pressed="false">Sound off</button><label class="volume-control" for="volume">Volume <input id="volume" type="range" min="0" max="100" value="75" step="1"><output id="volume-value" for="volume">75%</output></label></div>
+        <div class="journey" id="journey"><span id="district">01 / The listening garden</span><div class="note-trail" aria-hidden="true"><i id="note-0"></i><i id="note-1"></i><i id="note-2"></i><i id="note-3"></i><i id="note-4"></i><i id="note-5"></i><i id="note-6"></i><i id="note-7"></i></div><span id="goal-label">Find the eight notes</span></div>
         <div class="stage">
-          <canvas id="game" width="1000" height="460" tabindex="0" aria-label="Sound Walk. Move with left and right arrows or A and D. Jump with Space, W, or up arrow. Collect eight notes and reach the speaker. Escape pauses."></canvas>
+          <canvas id="game" width="1000" height="460" tabindex="0" aria-label="Sound Walk. Move with left and right arrows or A and D. Jump with Space, W, or up arrow; hold for a higher jump. Collect eight notes and reach the speaker. Escape pauses."></canvas>
           <div class="party-caption" id="party-caption" hidden><p class="eyebrow">Your finished song / the whole band is here</p><h3 id="finished-title">A little garden party</h3><p>Eight notes. Five friends. One song you found.</p></div>
           <div class="overlay" id="overlay"><div><p class="eyebrow" id="overlay-kicker">Meet the Onigiri Listener</p><h3 id="overlay-title">A small adventure.<br>A song along the way.</h3><p id="overlay-copy">Collect eight notes, then find the speaker.<br>Your finished song gets the whole gang dancing.</p><button class="button" id="start" type="button">Let’s play <span aria-hidden="true">↗</span></button><span class="start-note">Keyboard or touch · a different song every walk</span></div></div>
         </div>
         <div class="game-bottom"><p id="status" role="status">Your headphones are on. The garden is waiting.</p><div class="game-actions"><button id="pause" type="button" disabled>Pause</button><button id="replay" type="button" hidden>Replay song</button><button id="restart" type="button">Restart ↺</button></div></div>
       </div>
-      <div class="under-game"><p><kbd>←</kbd> <kbd>→</kbd> move <span class="space"></span><kbd>Space</kbd> jump <span class="space"></span><kbd>Esc</kbd> pause</p><p>Restart to meet another friend. No timer.</p></div>
+      <div class="under-game"><p><kbd>←</kbd> <kbd>→</kbd> move <span class="space"></span><kbd>Space</kbd> hold to jump higher <span class="space"></span><kbd>Esc</kbd> pause</p><p>A little wandering. A song at the end.</p></div>
       <div class="touch-controls" aria-label="Touch game controls"><div><button type="button" data-control="left" aria-label="Move left">←</button><button type="button" data-control="right" aria-label="Move right">→</button></div><button type="button" data-control="jump">Jump ↑</button></div>
       <noscript><p>This game needs JavaScript enabled in your browser.</p></noscript>
     </section>
