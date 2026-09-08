@@ -19,7 +19,10 @@
   function blocked(x,y){
     if(x<36||y<70||x>width-36||y>height-40)return true;
     if(trees.some(t=>Math.hypot(x-t.x,y-t.y)<18))return true;
-    return obstacles.some(o=>o.type==='ellipse'?((x-o.x)/(o.rx+14))**2+((y-o.y)/(o.ry+14))**2<1:x>o.x-14&&x<o.x+o.w+14&&y>o.y-14&&y<o.y+o.h+14);
+    // A path can run exactly along a rectangle's padded edge. Ignore tiny
+    // floating-point drift so walking from an offset neighbor cannot snag it.
+    const epsilon=1e-6;
+    return obstacles.some(o=>o.type==='ellipse'?((x-o.x)/(o.rx+14))**2+((y-o.y)/(o.ry+14))**2<1:x>o.x-14+epsilon&&x<o.x+o.w+14-epsilon&&y>o.y-14+epsilon&&y<o.y+o.h+14-epsilon);
   }
   const cols=width/cell,rows=height/cell;
   const point=i=>({x:(i%cols)*cell+cell/2,y:Math.floor(i/cols)*cell+cell/2});

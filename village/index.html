@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#eff0df">
-<title>PILAF / The Listening Village</title><link rel="icon" href="origami-mixer-bird.svg" type="image/svg+xml"><link rel="stylesheet" href="village.css?v=open-band-2">
-<script src="music.js" defer></script><script src="sprites.js" defer></script><script src="residents.js?v=open-band-2" defer></script><script src="world.js?v=open-band-2" defer></script><script src="village-audio.js?v=open-band-2" defer></script><script src="village.js?v=open-band-2" defer></script>
+<title>PILAF / The Listening Village</title><link rel="icon" href="origami-mixer-bird.svg" type="image/svg+xml"><link rel="stylesheet" href="village.css?v=village-quests-1">
+<script src="music.js" defer></script><script src="sprites.js" defer></script><script src="residents.js?v=village-quests-1" defer></script><script src="world.js?v=village-quests-1" defer></script><script src="village-audio.js?v=village-quests-1" defer></script><script src="village.js?v=village-quests-1" defer></script>
 </head><body><main class="cabinet">
 <header class="topbar"><a class="brand" href="../index.html#play" aria-label="Back to PILAF games">PILAF <span>all games ↗</span></a><div class="tools"><button id="sound" aria-pressed="false">Sound off</button><label class="volume">Volume <input id="volume" type="range" min="0" max="100" value="35" aria-label="Music volume"></label><button id="pause" disabled>Pause</button></div></header>
-<div class="quest-bar"><div><span class="eyebrow">THE LISTENING VILLAGE</span><p id="objective">A little village is waiting for its song.</p></div><button id="journal-button" aria-label="Open your field notes"><span id="band-count">0 / 3</span> bandmates ♫<span id="guest-count"></span></button></div>
+<div class="quest-bar"><div><span class="eyebrow" id="chapter-label">QUEST 1 · A BAND, TOGETHER</span><p id="objective">A little village is waiting for its song.</p></div><button id="journal-button" aria-label="Open your field notes"><span id="band-count">0 / 3</span> <span id="band-label">bandmates</span> ♫<span id="guest-count"></span></button></div>
 <div class="viewport" id="viewport">
 <canvas id="village" tabindex="0" aria-label="The Listening Village. Use the movement pad or tap a place to walk. Tap a neighbor to walk over and talk. Arrow keys or WASD move; E or Space interacts; J opens notes; Escape pauses."></canvas>
 <div class="location" id="location">Lantern Lane</div><button id="interact" class="interact" hidden>Talk</button><div class="toast" id="toast" role="status" hidden></div>

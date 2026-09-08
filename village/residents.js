@@ -33,12 +33,13 @@
  const entities=entries.map(([id,name,role,x,y,dialogue])=>({id,name,role,x:homes[id][0],y:homes[id][1],dialogue,part:parts[id][0],invitation:parts[id][1],kind:'resident:'+id,ambient:true}));
  const images=new Map();
  for(const e of entities){const image=new Image();image.src='assets/residents/'+e.id+'.svg';images.set(e.id,image);}
- function draw(ctx,id,x,y,{scale=1,time=0,still=false}={}){
+ function dancePose(id,time,bpm=90){const beat=time*bpm/60*Math.PI*2,phase=id.length*.6;return {hop:Math.max(0,Math.sin(beat+phase))*5,lean:Math.sin(beat*.5+phase)*.085,squash:Math.cos(beat+phase)*.025};}
+ function draw(ctx,id,x,y,{scale=1,time=0,still=false,dance=false,bpm=90}={}){
   const image=images.get(id);if(!image?.complete||!image.naturalWidth)return false;
   const size=(id==='trio'?104:82)*scale,ratio=image.naturalWidth/image.naturalHeight;
   const w=ratio>1?size:size*ratio,h=ratio>1?size/ratio:size;
-  const bob=still?0:Math.sin(time*1.6+id.length)*1.3;
-  ctx.save();ctx.translate(x,y+bob);if(!still&&id==='firefly'){ctx.fillStyle='#f3dea83a';ctx.beginPath();ctx.ellipse(0,-h/2,45,45,0,0,Math.PI*2);ctx.fill();}ctx.drawImage(image,-w/2,-h,w,h);ctx.restore();return true;
+  const pose=!still&&dance?dancePose(id,time,bpm):null,bob=still?0:Math.sin(time*1.6+id.length)*1.3;
+  ctx.save();ctx.translate(x,y+(pose?-pose.hop:bob));if(pose){ctx.rotate(pose.lean);ctx.scale(1+pose.squash,1-pose.squash);}else if(!still&&id==='mushroom')ctx.rotate(Math.sin(time*1.2)*.025);if(!still&&id==='firefly'){ctx.fillStyle='#f3dea83a';ctx.beginPath();ctx.ellipse(0,-h/2,45,45,0,0,Math.PI*2);ctx.fill();}ctx.drawImage(image,-w/2,-h,w,h);ctx.restore();return true;
  }
- window.VillageResidents={entities,images,draw};
+ window.VillageResidents={entities,images,draw,dancePose};
 })();
