@@ -15,7 +15,24 @@
   ['fuzz','Fuzz Pedal Critter','Soft friend, fuzzy sounds',590,850,'People expect me to be loud. Actually, I just like making tiny sounds a little fluffier.'],
   ['trio','Transistor Trio','Three friends, one conversation',705,950,'“We should start a trio.” “We are a trio.” “Then we’re already doing wonderfully.”']
  ];
- const entities=entries.map(([id,name,role,x,y,dialogue])=>({id,name,role,x,y,dialogue,kind:'resident:'+id,ambient:true}));
+ // Each friend keeps a home in the village, even after joining the music.
+ const homes={onigiri:[680,790],cat:[1320,245],fox:[1310,600],axolotl:[125,445],daruma:[490,510],mushroom:[155,960],origami:[1000,115],lion:[1080,980],musubi:[1320,950],firefly:[300,135],scope:[1135,855],fuzz:[210,680],trio:[735,975]};
+ const parts={
+  onigiri:['Soft bell replies','I can hear a little space between the notes. May I put a bell there?'],
+  cat:['Sleepy piano','I woke up with a chord under my paw. I could bring a few more.'],
+  fox:['Plucky little samples','That kettle sample is finally in tune. Shall we give it a place in the song?'],
+  axolotl:['Ribbon melody','I made a melody that curls around the pond. It would love some company.'],
+  daruma:['Wooden heartbeat','Tick, tock. A little wooden heartbeat to keep everybody together?'],
+  mushroom:['Garden harmonies','The mushrooms lean closer. Three soft voices are ready to bloom.'],
+  origami:['Folded arpeggios','I folded a chord into little sparkling pieces. Shall I scatter them into the music?'],
+  lion:['Round bass replies','There is room beneath that tune for a warm little rumble. I promise a gentle one.'],
+  musubi:['Bouncy cable plucks','All my cables are in the right places today. Listen to this little bounce!'],
+  firefly:['Twinkling high notes','The light blinks in time. A tiny, bright note answers from the grass.'],
+  scope:['Wavy synth answers','Your song makes such lovely shapes. I would like to send a wave back.'],
+  fuzz:['Fuzzy offbeats','Could your rhythm use a small, fluffy edge? I have just the sound.'],
+  trio:['Three-part harmony','“Can we join?” “All three of us?” “We practiced sharing the quiet bits.”']
+ };
+ const entities=entries.map(([id,name,role,x,y,dialogue])=>({id,name,role,x:homes[id][0],y:homes[id][1],dialogue,part:parts[id][0],invitation:parts[id][1],kind:'resident:'+id,ambient:true}));
  const images=new Map();
  for(const e of entities){const image=new Image();image.src='assets/residents/'+e.id+'.svg';images.set(e.id,image);}
  function draw(ctx,id,x,y,{scale=1,time=0,still=false}={}){

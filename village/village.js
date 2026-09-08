@@ -4,9 +4,9 @@
   const $=id=>document.getElementById(id),canvas=$('village'),ctx=canvas.getContext('2d');
   const W=VillageWorld,ink='#40573f',paper='#fff5db',reduced=matchMedia('(prefers-reduced-motion: reduce)');
   const saveKey='pilaf-listening-village-v1';
-  const fresh=()=>({version:1,seed:crypto.getRandomValues(new Uint32Array(1))[0],invited:false,rabbit:false,tanuki:false,robot:false,tape:false,battery:false,metTanuki:false,metRobot:false,festival:false,x:690,y:685,volume:.35,muted:false});
+  const fresh=()=>({version:1,seed:crypto.getRandomValues(new Uint32Array(1))[0],invited:false,rabbit:false,tanuki:false,robot:false,tape:false,battery:false,metTanuki:false,metRobot:false,festival:false,guests:[],x:690,y:685,volume:.35,muted:false});
   let saveAvailable=true,state=fresh();
-  try{const s=JSON.parse(localStorage.getItem(saveKey)||'null');if(s?.version===1){for(const k of ['invited','rabbit','tanuki','robot','tape','battery','metTanuki','metRobot','festival','muted'])state[k]=s[k]===true;if(Number.isInteger(s.seed))state.seed=s.seed>>>0;if(Number.isFinite(s.volume))state.volume=Math.max(0,Math.min(1,s.volume));if(Number.isFinite(s.x)&&Number.isFinite(s.y)&&!W.blocked(s.x,s.y)){state.x=s.x;state.y=s.y;}if(!state.invited){state.rabbit=state.tanuki=state.robot=state.festival=false;}if(!(state.rabbit&&state.tanuki&&state.robot))state.festival=false;}}catch{saveAvailable=false;}
+  try{const s=JSON.parse(localStorage.getItem(saveKey)||'null');if(s?.version===1){for(const k of ['invited','rabbit','tanuki','robot','tape','battery','metTanuki','metRobot','festival','muted'])state[k]=s[k]===true;if(Number.isInteger(s.seed))state.seed=s.seed>>>0;if(Number.isFinite(s.volume))state.volume=Math.max(0,Math.min(1,s.volume));if(Number.isFinite(s.x)&&Number.isFinite(s.y)&&!W.blocked(s.x,s.y)){state.x=s.x;state.y=s.y;}if(!state.invited){state.rabbit=state.tanuki=state.robot=state.festival=false;}if(!(state.rabbit&&state.tanuki&&state.robot))state.festival=false;else if(Array.isArray(s.guests))state.guests=[...new Set(s.guests.filter(id=>VillageResidents.entities.some(e=>e.id===id)))];}}catch{saveAvailable=false;}
   let sound=new VillageAudio(state.seed),started=false,paused=false,time=0,last=0,route=[],destination=null,arrival=null,nearest=null,modal=null,toastUntil=0,lastSave=0;
   const player={x:state.x,y:state.y,face:1,moving:false},camera={x:0,y:0},view={w:1000,h:640,zoom:1},keys=new Set();
   const pad=$('mobile-controls'),padPointers=new Map(),padDirections=new Set(),padButtons=[...pad.querySelectorAll('[data-move]')];
@@ -24,22 +24,22 @@
   for(const type of ['touchstart','touchmove'])pad.addEventListener(type,e=>e.preventDefault(),{passive:false});
   const joined=()=>['rabbit','tanuki','robot'].filter(k=>state[k]).length;
   function persist(){state.x=player.x;state.y=player.y;try{localStorage.setItem(saveKey,JSON.stringify(state));saveAvailable=true;}catch{saveAvailable=false;}}
-  function entities(){return W.entities.filter(e=>e.id!=='tape'||!state.tape&&!state.tanuki).map(e=>state[e.id]&&['rabbit','tanuki','robot'].includes(e.id)?{...e,x:{rabbit:630,tanuki:720,robot:810}[e.id],y:295}:e);}
+  function entities(){return W.entities.filter(e=>e.id!=='tape'||!state.tape&&!state.tanuki).map(e=>state[e.id]&&['rabbit','tanuki','robot'].includes(e.id)?{...e,x:{rabbit:570,tanuki:720,robot:870}[e.id],y:295}:e);}
   function toast(text){$('toast').textContent=text;$('toast').hidden=false;toastUntil=time+4;}
   function objective(){
     if(!state.invited)return 'Say hello to Crane by the village sign.';
-    if(state.festival)return 'The village has its song. Stay a little while.';
-    if(joined()===3)return 'Everyone is here! Meet at the lantern stage.';
+    if(state.festival)return state.guests.length===13?'Every neighbor is in the song. Wander and listen.':'The concert is growing! Invite neighbors with a music note.';
+    if(joined()===3)return 'The band is ready! Play at the stage, or invite more neighbors.';
     if(state.tape&&!state.tanuki)return 'Bring the ribbon-wrapped tape back to Tanuki.';
     if(state.battery&&!state.robot)return 'Take Sprout’s garden battery to Robot.';
     return 'Invite Rabbit, Tanuki and Robot to the little stage.';
   }
   function refresh(){
-    $('objective').textContent=objective();$('band-count').textContent=`${joined()} / 3`;
-    sound.setLayers({rabbit:state.rabbit,tanuki:state.tanuki,robot:state.robot,festival:state.festival});
+    $('objective').textContent=objective();$('band-count').textContent=`${joined()} / 3`;$('guest-count').textContent=joined()===3?` + ${state.guests.length} neighbors`:'';
+    sound.setLayers({rabbit:state.rabbit,tanuki:state.tanuki,robot:state.robot,festival:state.festival,guests:state.guests});
     sound.volume=state.volume;sound.muted=state.muted;sound.applyVolume();
     $('volume').value=Math.round(state.volume*100);$('sound').textContent=started&&!state.muted?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(started&&!state.muted));
-    $('music-caption').textContent=state.festival?'The village band · a song that keeps growing':joined()?`${joined()} voices in the garden`:'A quiet garden';
+    $('music-caption').textContent=state.guests.length?`${state.guests.length} neighbor parts · taking turns in the song`:state.festival?'The village band · a song that keeps growing':joined()?`${joined()} voices in the garden`:'A quiet garden';
   }
   function focusPanel(id){modal=id;clearControls();route=[];arrival=null;destination=null;player.moving=false;$(id).hidden=false;$('interact').hidden=true;pad.hidden=true;$(id).querySelector('button')?.focus({preventScroll:true});}
   function closePanels(){for(const id of ['dialogue','journal'])$(id).hidden=true;modal=null;keys.clear();pad.hidden=!started||paused;canvas.focus({preventScroll:true});}
@@ -60,10 +60,15 @@
   }
   function talk(id){
     const e=entities().find(e=>e.id===id);if(!e)return;
-    if(e.ambient){say(e,e.dialogue);return;}
+    if(e.ambient){
+      if(joined()<3)say(e,e.dialogue+' When your three bandmates are ready, come back and we can make music together.');
+      else if(state.guests.includes(id))say(e,`My ${e.part.toLowerCase()} are part of our song now. We take turns, so everybody gets a little space to shine.`,[['Listen to my part',()=>sound.audition(id)],['See you around the village',closePanels]]);
+      else say(e,e.invitation,[['Join our music',()=>{if(joined()!==3||state.guests.includes(id))return;state.guests.push(id);persist();refresh();sound.audition(id);say(e,`I’m in! Listen for my ${e.part.toLowerCase()}. I’ll play from here, so the whole village can be our stage.`,[['Lovely. Let’s keep wandering',closePanels]]);toast(`${e.name} joins: ${e.part.toLowerCase()}.`);}],['Maybe in a little while',closePanels]]);
+      return;
+    }
     if(id==='crane'){
       if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;persist();refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
-      else say(e,joined()===3?'Three invitations delivered! I knew you were the right little shrimp for the job. The stage is waiting.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
+      else say(e,joined()===3?'Three invitations delivered! Play at the stage, and keep saying hello around the village. Friends with a music note can join your song now.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
     }else if(id==='rabbit'){
       if(state.rabbit)say(e,state.festival?'Listen! Our little tune has grown branches. I wonder where it will wander next.':'My theremin is all warmed up. I’m saving a place for you.');
       else if(!state.invited)say(e,'Hello, little microphone. I’m trying to remember a tune. Crane was looking for you, by the village sign.');
@@ -94,16 +99,16 @@
   function goTo(id){const e=entities().find(e=>e.id===id);if(!e)return;walkTo({x:e.x,y:e.y+42},id);toast(`Wandering over to ${id==='stage'?'the lantern stage':e.name}…`);}
   function walkTo(point,id=null){route=W.path(player,point);destination=route.at(-1)||null;arrival=id;if(!route.length){arrival=null;toast('Try a little patch of open ground.');}}
   function openJournal(){
-    if(!started||paused)return;closePanels();$('journal-title').textContent='A band, together.';$('neighbors-button').textContent='Meet the neighbors';$('neighbors-button').onclick=openNeighbors;$('new-game').hidden=false;$('journal-intro').textContent=state.invited?'Little favors make a very good band. Tap “Visit” and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';$('journal-list').replaceChildren();
+    if(!started||paused)return;closePanels();$('journal-title').textContent='A band, together.';$('neighbors-button').textContent=joined()===3?`Invite more musicians (${state.guests.length} / 13)`:'Meet the neighbors';$('neighbors-button').onclick=openNeighbors;$('new-game').hidden=false;$('journal-intro').textContent=joined()===3?'Your first band is ready. Keep growing the song: invite more musicians below.':state.invited?'Little favors make a very good band. Tap “Visit” and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';$('journal-list').replaceChildren();
     const entries=state.invited?[['rabbit','Moon Rabbit','Remember a three-note tune.'],['tanuki','Tanuki Tape Courier',state.tape?'Return the tape.':'Find the tape by the tea bench.'],['robot','Pocket Sequencer Robot',state.battery?'Bring over the garden battery.':'Ask Capacitor Sprout for a battery.'],['stage','The lantern stage',state.festival?'Your first concert is playing.':'Meet here when all three friends are ready.']]:[['crane','Crane Note Delivery','Pick up the invitations.']];
     for(const [id,name,task] of entries){const row=document.createElement('div');row.className='journal-row';const mark=document.createElement('span');mark.className='mark';mark.textContent=state[id]||(id==='stage'&&state.festival)?'✓':'○';const content=document.createElement('div'),title=document.createElement('h3'),copy=document.createElement('p');title.textContent=name;copy.textContent=state[id]?'At the stage, ready to play.':task;content.append(title,copy);const visit=document.createElement('button');visit.textContent='Visit';visit.dataset.visit=id;visit.onclick=()=>{closePanels();goTo(id);};row.append(mark,content,visit);$('journal-list').append(row);}
     const bag=[];if(state.invited)bag.push('invitations');if(state.tape&&!state.tanuki)bag.push('ribbon-wrapped tape');if(state.battery&&!state.robot)bag.push('garden battery');$('inventory').textContent='In your pocket: '+(bag.join(', ')||'a little curiosity')+'.';$('save-status').textContent=saveAvailable?'Your progress saves in this browser on this device.':'Browser storage is unavailable. You can play, but progress may not survive closing this page.';$('new-game').textContent='Start a new village';$('new-game').onclick=confirmNew;focusPanel('journal');
   }
   function confirmNew(){say({name:'A fresh little beginning?',role:'Your current village will be replaced',kind:'shrimp'},'This clears this village’s quest progress and starts a new song. Your other PILAF games are untouched.',[['Keep my village',closePanels],['Start fresh',()=>{sound.stop();state=fresh();sound=new VillageAudio(state.seed);Object.assign(player,{x:state.x,y:state.y});persist();closePanels();refresh();sound.start().catch(audioFailed);toast('A fresh morning in the village.');}]]);}
   function openNeighbors(){
-    closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent='Thirteen more neighbors from the PILAF collection. Visit anyone for a little conversation.';$('journal-list').replaceChildren();
-    for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=e.role;content.append(name,role);const button=document.createElement('button');button.textContent='Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
-    $('inventory').textContent='Your three band invitations are still in the quest notes.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
+    closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent=joined()===3?'Visit a friend and ask them to join. Each brings a different musical part; friends take turns in the arrangement.':'Meet the neighbors around the village. Finish your three band invitations to make music with them, too.';$('journal-list').replaceChildren();
+    for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=state.guests.includes(e.id)?'Playing: '+e.part:joined()===3?'Ready to join: '+e.part:e.role;content.append(name,role);const button=document.createElement('button');button.textContent=state.guests.includes(e.id)?'Listen':'Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
+    $('inventory').textContent=joined()===3?`${state.guests.length} / 13 neighbors in the music. Gold ! = quest; green music note = invitation.`:'Gold ! markers show your next quest conversations.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
   }
   function audioFailed(){state.muted=true;refresh();toast('Sound couldn’t start. Tap Sound off to try again.');}
   async function start(){started=true;paused=false;pad.hidden=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);persist();}
@@ -125,7 +130,7 @@
   for(const type of ['contextmenu','selectstart','dragstart'])canvas.addEventListener(type,e=>e.preventDefault());
   let pointer=null;
   canvas.addEventListener('pointerdown',e=>{if(!started||paused||modal||!e.isPrimary||e.button!==0)return;e.preventDefault();canvas.focus({preventScroll:true});pointer={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
-  canvas.addEventListener('pointerup',e=>{if(!pointer||pointer.id!==e.pointerId)return;const press=pointer;pointer=null;if(!started||paused||modal||Math.hypot(e.clientX-press.x,e.clientY-press.y)>30)return;const r=canvas.getBoundingClientRect(),p={x:(e.clientX-r.left)/view.zoom+camera.x,y:(e.clientY-r.top)/view.zoom+camera.y};const target=entities().map(t=>({e:t,d:Math.hypot(p.x-t.x,p.y-(t.kind==='stage'?t.y+20:t.y-22))})).sort((a,b)=>a.d-b.d)[0];if(target&&target.d<Math.max(40,28/view.zoom)){if(Math.hypot(player.x-target.e.x,player.y-target.e.y)<85)talk(target.e.id);else goTo(target.e.id);}else walkTo(p);});
+  canvas.addEventListener('pointerup',e=>{if(!pointer||pointer.id!==e.pointerId)return;const press=pointer;pointer=null;if(!started||paused||modal||Math.hypot(e.clientX-press.x,e.clientY-press.y)>30)return;const r=canvas.getBoundingClientRect(),p={x:(e.clientX-r.left)/view.zoom+camera.x,y:(e.clientY-r.top)/view.zoom+camera.y};const badge=entities().find(t=>{if(!markerFor(t))return false;const m=markerPosition(t);return Math.hypot(p.x-t.x,p.y-m.y)<24/view.zoom;});if(badge){if(Math.hypot(player.x-badge.x,player.y-badge.y)<85)talk(badge.id);else goTo(badge.id);return;}const target=entities().map(t=>({e:t,d:Math.hypot(p.x-t.x,p.y-(t.kind==='stage'?t.y+20:t.y-22))})).sort((a,b)=>a.d-b.d)[0];if(target&&target.d<Math.max(40,28/view.zoom)){if(Math.hypot(player.x-target.e.x,player.y-target.e.y)<85)talk(target.e.id);else goTo(target.e.id);}else walkTo(p);});
   for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>pointer=null);
   function update(dt){
     if(!started||paused||modal){player.moving=false;return;}
@@ -187,9 +192,29 @@
     else if(e.kind==='sprout')sprout(e.x,e.y);
     else if(e.kind==='tape'){ellipse(e.x,e.y+2,20,6,'#7c8f5720');round(e.x-17,e.y-22,34,22,4,'#e7c9b0','#9b9672');ellipse(e.x-8,e.y-12,5,5,'#fbebcf','#9b9672');ellipse(e.x+8,e.y-12,5,5,'#fbebcf','#9b9672');line([[e.x,e.y-23],[e.x,e.y]],'#ba7f78',3);ellipse(e.x-4,e.y-25,6,3,'#d9a29b');ellipse(e.x+4,e.y-25,6,3,'#d9a29b');}
     else if(e.kind!=='stage'){ellipse(e.x,e.y+1,26,8,'#526c4320');PilafSprites.draw(ctx,e.kind,e.x,e.y,{scale:1.12,time:reduced.matches?0:time,dance:state[e.id]&&state.festival});}
-    const available=e.id==='crane'?!state.invited:e.id==='stage'?joined()===3&&!state.festival:['rabbit','tanuki','robot'].includes(e.id)?state.invited&&!state[e.id]:state.invited&&(e.id==='tape'||e.id==='sprout'&&!state.battery&&!state.robot);
-    if(available){const y=e.y+(e.kind==='stage'?30:-88)+(reduced.matches?0:Math.sin(time*2+e.x)*3);ellipse(e.x,y,11,12,'#fcf1ce','#d3c18c');label(e.id==='tape'?'♪':'!',e.x,y+4,14,'#a8925c');}
     if(e.kind!=='stage'){const names={crane:'Crane',rabbit:'Moon Rabbit',tanuki:'Tanuki',robot:'Robot',sprout:'Sprout',tape:'a lost tape',onigiri:'Onigiri',cat:'Cat Nap',fox:'Fox',axolotl:'Axolotl',daruma:'Daruma',mushroom:'Mushroom Garden',origami:'Origami Bird',lion:'Little Lion',musubi:'Cable Musubi',firefly:'Firefly',scope:'Oscilloscope',fuzz:'Fuzz Critter',trio:'Transistor Trio'};label(names[e.id]||e.name,e.x,e.y+21,10,'#708362');}
+  }
+  function markerFor(e){
+    if(e.ambient)return joined()===3?(state.guests.includes(e.id)?'playing':'invite'):null;
+    if(e.id==='crane')return !state.invited?'quest':null;
+    if(e.id==='stage')return joined()===3&&!state.festival?'quest':null;
+    if(['rabbit','tanuki','robot'].includes(e.id))return state.invited&&!state[e.id]?'quest':null;
+    return state.invited&&(e.id==='tape'||e.id==='sprout'&&!state.battery&&!state.robot)?'quest':null;
+  }
+  // Draw markers after scenery and characters: trees can never cover a quest.
+  // Screen-sized badges stay readable when the phone camera zooms out.
+  function markerPosition(e){
+    const playing=markerFor(e)==='playing',radius=(playing?11:17)/view.zoom;
+    const bob=reduced.matches||playing?0:Math.sin(time*2.5+e.x)*3/view.zoom;
+    return {y:Math.max(radius+8/view.zoom,e.y+(e.kind==='stage'?48:-102)-radius/2+bob)};
+  }
+  function drawMarker(e){
+    const kind=markerFor(e);if(!kind)return;
+    const playing=kind==='playing',{y}=markerPosition(e);
+    ctx.save();ctx.translate(e.x,y);ctx.scale(1/view.zoom,1/view.zoom);
+    ctx.shadowColor='#334b3c55';ctx.shadowBlur=6;ctx.shadowOffsetY=2;
+    ctx.beginPath();ctx.arc(0,0,playing?11:17,0,Math.PI*2);ctx.fillStyle=kind==='quest'?'#ffce54':playing?'#fff5db':'#34715a';ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.strokeStyle='#fff9e8';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle=kind==='quest'?'#413919':playing?'#34715a':'#fff9e8';ctx.font=`bold ${playing?15:24}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(kind==='quest'?'!':'♪',0,1);ctx.restore();
   }
   function draw(){
     const tx=Math.max(0,Math.min(W.width-view.w,player.x-view.w*.5)),ty=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));camera.x+=(tx-camera.x)*.14;camera.y+=(ty-camera.y)*.14;
@@ -197,6 +222,7 @@
     if(destination){ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(player.x,player.y);for(const p of route)ctx.lineTo(p.x,p.y);ctx.strokeStyle='#8a9e7180';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);ellipse(destination.x,destination.y,10,5,'#fff6d880','#9aad77');}
     const things=[...W.trees.map(t=>({...t,type:'tree'})),...entities().map(e=>({...e,type:'entity'})),{...player,type:'player'}].sort((a,b)=>a.y-b.y);
     for(const item of things){if(item.x<camera.x-100||item.x>camera.x+view.w+100||item.y<camera.y-80||item.y>camera.y+view.h+150)continue;if(item.type==='tree')tree(item);else if(item.type==='entity')drawEntity(item);else{ellipse(player.x,player.y+2,24,8,'#53664029');PilafSprites.draw(ctx,'shrimp',player.x,player.y,{scale:1.15,time:reduced.matches?0:time,moving:player.moving,face:player.face,dance:state.festival&&Math.hypot(player.x-720,player.y-330)<100});}}
+    for(const e of entities())drawMarker(e);
     if(state.festival&&!reduced.matches)for(let i=0;i<12;i++){const x=580+(i*37)%290+Math.sin(time+i)*8,y=270-((time*18+i*19)%100);label(i%2?'♪':'♫',x,y,13,['#b29464','#9aaa73','#c29585'][i%3]);}
     ctx.restore();
     // Soft edge shade keeps the world feeling like a little illustrated diorama.
