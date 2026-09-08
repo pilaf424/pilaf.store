@@ -32,7 +32,11 @@
   let audio, master, audioBus, noiseBuffer, muted = true, beat = 0, nextBeat = 0, jumpRequested = false, jumpHeld = false;
   const sources = new Set();
   let outputVolume = Number($('volume').value) / 100;
-  const keys = new Set(), touch = new Set();
+  const keys = new Set(), touch = new Set(), controlPointers = new Map();
+  const touchControls = document.querySelector('.touch-controls');
+  const controlButtons = [...document.querySelectorAll('[data-control]')];
+  const touchDevice = window.matchMedia('(any-pointer: coarse)');
+  let touchJumpBoost = false;
   function drawFromBag(items,bag,current) {
     if(!bag.length) bag.push(...items);
     const choices=bag.filter(item=>item!==current);
@@ -65,7 +69,7 @@
     notes = positions.map(([x,y]) => ({x,y,found:false}));
     player = {x:65,y:floor-52,vx:0,vy:0,grounded:true,face:1,landing:0};
     particles = []; pickupLabel = null; jumpBuffer = 0; coyoteTime = .1; district = -1; hudCount = -1;
-    count = 0; camera = 0; beat = 0; keys.clear(); touch.clear(); jumpRequested = false; jumpHeld = false;
+    count = 0; camera = 0; beat = 0; clearInput();
     $('score').textContent = '00 / 08 notes';
     $('status').textContent = `${activeCharacter.name} is ready. Follow the notes!`;
     updateJourney();
@@ -181,12 +185,45 @@
     if(phase === 'paused') return begin();
     if(phase !== 'playing' && phase !== 'won') return;
     pausedFrom = phase; stopVoices();
-    phase = 'paused'; keys.clear(); touch.clear(); jumpRequested = false; jumpHeld = false; jumpBuffer = 0;
+    phase = 'paused'; clearInput();
     $('pause').textContent = 'Resume';
     showOverlay('Take your time', 'A little breather.', 'Your notes will be right here.', pausedFrom === 'won' ? 'Back to the party ↗' : 'Keep wandering ↗');
   }
   function jump() { if(!jumpHeld) jumpRequested = true; jumpHeld = true; }
-  function releaseJump() { jumpHeld = false; if(player.vy < -280) player.vy = -280; }
+  function releaseJump() { jumpHeld = false; if(!touchJumpBoost && player.vy < -280) player.vy = -280; }
+  function syncJump() {
+    const held = touch.has('jump') || [' ','arrowup','w'].some(key => keys.has(key));
+    if(held) jump(); else releaseJump();
+  }
+  function updateControlState() {
+    touch.clear();
+    for(const {control} of controlPointers.values()) touch.add(control);
+    for(const button of controlButtons) {
+      const pressed = touch.has(button.dataset.control);
+      button.classList.toggle('is-pressed',pressed);
+      button.setAttribute('aria-pressed',String(pressed));
+    }
+    syncJump();
+  }
+  function clearInput() {
+    const captured = [...controlPointers];
+    controlPointers.clear(); keys.clear(); touch.clear();
+    jumpRequested = false; jumpHeld = false; jumpBuffer = 0; touchJumpBoost = false;
+    for(const button of controlButtons) {button.classList.remove('is-pressed');button.setAttribute('aria-pressed','false');}
+    for(const [id,{button}] of captured) {
+      if(typeof id === 'number' && button.hasPointerCapture(id)) button.releasePointerCapture(id);
+    }
+  }
+  function pressControl(id,button,pointerType) {
+    if(phase !== 'playing' || controlPointers.has(id)) return;
+    controlPointers.set(id,{button,control:button.dataset.control});
+    if(button.dataset.control === 'jump' && pointerType !== 'keyboard') touchJumpBoost = true;
+    updateControlState();
+  }
+  function releaseControl(id) {
+    if(!controlPointers.delete(id)) return;
+    updateControlState();
+  }
   $('start').addEventListener('click', begin);
   $('pause').addEventListener('click', pause);
   $('restart').addEventListener('click', () => {reset(); begin();});
@@ -198,22 +235,39 @@
   });
   $('volume').addEventListener('pointerup', () => { if(phase === 'playing') canvas.focus({preventScroll:true}); });
   canvas.addEventListener('keydown', e => {
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
     if(['ArrowLeft','ArrowRight','ArrowUp',' ','a','d','w','A','D','W','Escape'].includes(e.key)) e.preventDefault();
-    if(e.key === 'Escape') { pause(); return; }
+    if(e.key === 'Escape') { if(!e.repeat) pause(); return; }
     if(phase !== 'playing') return;
     keys.add(e.key.toLowerCase());
-    if([' ','ArrowUp','w','W'].includes(e.key) && !e.repeat) jump();
+    syncJump();
   });
-  window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); if([' ','ArrowUp','w','W'].includes(e.key)) releaseJump(); });
-  window.addEventListener('blur', () => { keys.clear(); touch.clear(); jumpHeld = false; if(phase === 'playing' || phase === 'won') pause(); });
-  document.addEventListener('visibilitychange', () => { if(document.hidden && phase !== 'paused') pause(); });
-  for(const button of document.querySelectorAll('[data-control]')) {
+  window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); releaseControl('key:'+e.key); syncJump(); });
+  canvas.addEventListener('blur', () => {keys.clear();syncJump();});
+  canvas.addEventListener('pointerdown', () => canvas.focus({preventScroll:true}));
+  window.addEventListener('blur', () => { clearInput(); if(phase === 'playing' || phase === 'won') pause(); });
+  document.addEventListener('visibilitychange', () => { if(document.hidden) {clearInput();if(phase !== 'paused') pause();} });
+  // Keep native scrolling, zoom and text selection everywhere outside play surfaces.
+  for(const surface of [canvas,touchControls]) {
+    for(const event of ['contextmenu','selectstart','dragstart']) surface.addEventListener(event,e => e.preventDefault());
+  }
+  for(const event of ['touchstart','touchmove']) touchControls.addEventListener(event,e => e.preventDefault(),{passive:false});
+  for(const button of controlButtons) {
     button.addEventListener('pointerdown', e => {
+      if(e.button !== 0) return;
       e.preventDefault(); if(phase !== 'playing') return;
-      button.setPointerCapture(e.pointerId); touch.add(button.dataset.control);
-      if(button.dataset.control === 'jump') jump();
+      canvas.focus({preventScroll:true});
+      button.setPointerCapture(e.pointerId);
+      pressControl(e.pointerId,button,e.pointerType);
     });
-    for(const event of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(event, () => {touch.delete(button.dataset.control); if(button.dataset.control === 'jump') releaseJump();});
+    for(const event of ['pointerup','pointercancel','lostpointercapture']) button.addEventListener(event,e => releaseControl(e.pointerId));
+    button.addEventListener('keydown',e => {
+      if(![' ','Enter'].includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+      e.preventDefault(); pressControl('key:'+e.key,button,'keyboard');
+    });
+    button.addEventListener('blur',() => {
+      for(const [id,control] of controlPointers) if(typeof id === 'string' && control.button === button) releaseControl(id);
+    });
   }
   function burst(x,y,color,amount=12) {
     if(motionPreference.matches) return;
@@ -244,12 +298,13 @@
     jumpBuffer = jumpRequested ? .14 : Math.max(0,jumpBuffer-dt);
     if(jumpBuffer>0 && coyoteTime>0) { player.vy = -555; player.grounded = false; coyoteTime = 0; jumpBuffer = 0; }
     jumpRequested = false;
-    if(!jumpHeld && player.vy < -280) player.vy = -280;
+    if(!jumpHeld && !touchJumpBoost && player.vy < -280) player.vy = -280;
     player.landing = Math.max(0,player.landing-dt);
     const wasGrounded = player.grounded;
     const oldBottom = player.y + 52;
     player.x = Math.max(18,Math.min(worldWidth-58,player.x+player.vx*dt));
     player.vy += 1450*dt; player.y += player.vy*dt; player.grounded = false;
+    if(player.vy >= 0) touchJumpBoost = false;
     for(const p of [...platforms,{x:0,y:floor,w:worldWidth}]) {
       if(player.vy >= 0 && oldBottom <= p.y+1 && player.y+52 >= p.y && player.x+38 > p.x && player.x+6 < p.x+p.w) {
         if(!wasGrounded && player.vy>180) {player.landing = .18; burst(player.x+22,p.y,'#a8b594',5);}
@@ -267,7 +322,7 @@
     }
     if(player.x+44>2340 && player.x<2425 && player.y+52>=284) {
       if(count === 8) {
-        phase = 'won'; resetTransport(); keys.clear(); touch.clear();
+        phase = 'won'; resetTransport(); clearInput();
         $('status').textContent = `Your finished song: ${song.title}. All ten friends are playing along!`;
         $('overlay').hidden = true; $('party-caption').hidden = false; $('replay').hidden = false;
         $('restart').textContent = 'New song ↺';
@@ -606,7 +661,7 @@
       const x=i*190-camera*1.08;
       if(x>-60&&x<width+60){plant(x,468,1.05+(i%3)*.24,'#819667');plant(x+19,477,.95,'#a3b28a');}
     }
-    if(phase==='playing' && count===0 && player.x<180){round(18,18,194,30,15,'#fffdf0c9');label('Hold jump for a higher hop',32,37,10,'#536d48');}
+    if(phase==='playing' && count===0 && player.x<180){round(18,18,194,30,15,'#fffdf0c9');label(touchDevice.matches?'Hold a direction. Tap Jump.':'Hold jump for a higher hop',32,37,10,'#536d48');}
   }
   function resize() {
     scene.width = canvas.clientWidth/canvas.clientHeight*460;
