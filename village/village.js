@@ -3,18 +3,14 @@
   'use strict';
   const $=id=>document.getElementById(id),canvas=$('village'),ctx=canvas.getContext('2d');
   const W=VillageWorld,ink='#40573f',paper='#fff5db',reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  const saveKey='pilaf-listening-village-v1';
   const encoreQuests=[
     {giver:'rabbit',name:'Moon Rabbit',title:'A melody around the pond',guests:['onigiri','cat','axolotl','firefly'],request:'Our first song is lovely. Imagine a few more friends answering the melody! Could you invite Onigiri, Cat Nap, Axolotl and Circuit Firefly, then come back to me?',thanks:'Hear those little answers? The melody has friends now. Tanuki has an idea for the next part.'},
     {giver:'tanuki',name:'Tanuki',title:'A little warmth and wobble',guests:['fox','lion','fuzz','scope'],request:'Rabbit brought the sparkle. How about some warmth underneath? Find Fox, Little Lion, Fuzz Critter and Oscilloscope Smile, then tell me how it went.',thanks:'Warm bass, fuzzy edges, tiny samples. That is a very good tape! Robot has been planning our big finish.'},
     {giver:'robot',name:'Robot',title:'Room for the whole village',guests:['origami','daruma','mushroom','trio'],request:'FINAL FRIENDSHIP MISSION. Invite Origami Bird, Daruma, Mushroom Garden and Transistor Trio. Report back when everyone has a part!',thanks:'ALL FRIENDS ACCOUNTED FOR. The whole village is our band! Meet at the lantern stage for our encore.'}
   ];
   const fresh=()=>({version:1,seed:crypto.getRandomValues(new Uint32Array(1))[0],invited:false,rabbit:false,tanuki:false,robot:false,tape:false,battery:false,metTanuki:false,metRobot:false,festival:false,guests:[],encore:0,encoreAccepted:false,encoreFinale:false,x:690,y:685,volume:.35,muted:false});
-  let saveAvailable=true,state=fresh();
-  try{const s=JSON.parse(localStorage.getItem(saveKey)||'null');if(s?.version===1){for(const k of ['invited','rabbit','tanuki','robot','tape','battery','metTanuki','metRobot','festival','muted'])state[k]=s[k]===true;if(Number.isInteger(s.seed))state.seed=s.seed>>>0;if(Number.isFinite(s.volume))state.volume=Math.max(0,Math.min(1,s.volume));if(Number.isFinite(s.x)&&Number.isFinite(s.y)&&!W.blocked(s.x,s.y)){state.x=s.x;state.y=s.y;}if(!state.invited){state.rabbit=state.tanuki=state.robot=state.festival=false;}if(!(state.rabbit&&state.tanuki&&state.robot))state.festival=false;else if(Array.isArray(s.guests))state.guests=[...new Set(s.guests.filter(id=>VillageResidents.entities.some(e=>e.id===id)))];}}catch{saveAvailable=false;}
-  let sound=new VillageAudio(state.seed),started=false,paused=false,time=0,last=0,route=[],destination=null,arrival=null,nearest=null,modal=null,toastUntil=0,lastSave=0;
-  // Older villages keep their band and guests, then pick up the new story at Rabbit.
-  try{const s=JSON.parse(localStorage.getItem(saveKey)||'null');if(state.festival&&Number.isInteger(s?.encore)&&s.encore>=0&&s.encore<=encoreQuests.length){state.encore=s.encore;while(state.encore>0&&!encoreQuests.slice(0,state.encore).every(q=>q.guests.every(id=>state.guests.includes(id))))state.encore--;state.encoreAccepted=state.encore<encoreQuests.length&&s.encoreAccepted===true;state.encoreFinale=state.encore===encoreQuests.length&&s.encoreFinale===true;}}catch{}
+  let state=fresh();
+  let sound=new VillageAudio(state.seed),started=false,paused=false,time=0,last=0,route=[],destination=null,arrival=null,nearest=null,modal=null,toastUntil=0;
   let villageTime=0;
   const residentOffsets=new Map();
   const player={x:state.x,y:state.y,face:1,moving:false},camera={x:0,y:0},view={w:1000,h:640,zoom:1},keys=new Set();
@@ -35,7 +31,6 @@
   const currentQuest=()=>state.festival?encoreQuests[state.encore]:null;
   const questCount=()=>currentQuest()?.guests.filter(id=>state.guests.includes(id)).length||0;
   const canInvite=id=>!!(state.encoreAccepted&&currentQuest()?.guests.includes(id));
-  function persist(){state.x=player.x;state.y=player.y;try{localStorage.setItem(saveKey,JSON.stringify(state));saveAvailable=true;}catch{saveAvailable=false;}}
   function entities(){return W.entities.filter(e=>e.id!=='tape'||!state.tape&&!state.tanuki).map(e=>{
     if(state[e.id]&&['rabbit','tanuki','robot'].includes(e.id))return {...e,x:{rabbit:570,tanuki:720,robot:870}[e.id],y:295};
     const offset=reduced.matches?null:residentOffsets.get(e.id);
@@ -79,7 +74,7 @@
     if(!actions.length){const b=document.createElement('button');b.textContent='See you in a little while';b.onclick=closePanels;$('dialogue-actions').append(b);}
     focusPanel('dialogue');
   }
-  function recruit(id){state[id]=true;persist();refresh();sound.chime();toast(`${{rabbit:'Rabbit’s melody',tanuki:'Tanuki’s warm bass',robot:'Robot’s pocket rhythm'}[id]} joins the song.`);}
+  function recruit(id){state[id]=true;refresh();sound.chime();toast(`${{rabbit:'Rabbit’s melody',tanuki:'Tanuki’s warm bass',robot:'Robot’s pocket rhythm'}[id]} joins the song.`);}
   function melodyPuzzle(e){
     say(e,'It goes Leaf, Star, Moon. Can you play it back? Take your time; the notes are written down below.');
     const extra=$('dialogue-extra'),pattern=document.createElement('div');pattern.className='note-pattern';pattern.textContent='Leaf ♩ → Star ♫ → Moon ♪';extra.append(pattern);
@@ -91,21 +86,21 @@
     const q=currentQuest();
     if(!q){say(e,state.encoreFinale?'Look at everyone dancing! A little band became a whole village.':'Everyone has a part now. Visit the lantern stage and start our village encore.');return;}
     if(e.id!==q.giver){say(e,`${q.name} has our next idea. Have a little chat with them here at the stage.`,[[`Go to ${q.name}`,()=>{closePanels();goTo(q.giver);}]]);return;}
-    if(!state.encoreAccepted){say(e,q.request,[['I will invite them',()=>{state.encoreAccepted=true;persist();refresh();say(e,questCount()?`You already know ${questCount()} of these musical friends! Their invitations count. Your field notes show who is left.`:'Four names, tucked into your field notes. Come back when they have joined our song.',[['Open my quest notes',openJournal],['Let me wander',closePanels]]);}],['In a little while',closePanels]]);return;}
+    if(!state.encoreAccepted){say(e,q.request,[['I will invite them',()=>{state.encoreAccepted=true;refresh();say(e,questCount()?`You already know ${questCount()} of these musical friends! Their invitations count. Your field notes show who is left.`:'Four names, tucked into your field notes. Come back when they have joined our song.',[['Open my quest notes',openJournal],['Let me wander',closePanels]]);}],['In a little while',closePanels]]);return;}
     if(questCount()<q.guests.length){say(e,`${questCount()} / ${q.guests.length} friends have joined. There is still room in our song! Your field notes show the friends we are waiting for.`,[['Check the invitations',openJournal],['Back to the village',closePanels]]);return;}
-    say(e,'All four invitations delivered! Ready to hear how our band has grown?',[['Everyone is ready',()=>{if(currentQuest()!==q||questCount()!==q.guests.length)return;state.encore++;state.encoreAccepted=false;persist();refresh();sound.chime();say(e,q.thanks,[['On to the next little adventure',closePanels]]);toast(`${q.title} complete!`);}]]);
+    say(e,'All four invitations delivered! Ready to hear how our band has grown?',[['Everyone is ready',()=>{if(currentQuest()!==q||questCount()!==q.guests.length)return;state.encore++;state.encoreAccepted=false;refresh();sound.chime();say(e,q.thanks,[['On to the next little adventure',closePanels]]);toast(`${q.title} complete!`);}]]);
   }
   function talk(id){
     const e=entities().find(e=>e.id===id);if(!e)return;
     if(e.ambient){
       if(state.guests.includes(id))say(e,`Listen for my ${e.part.toLowerCase()} in our song. We take turns, so everybody gets a little space to shine.`,[['Listen to my part',()=>sound.audition(id)],['See you around the village',closePanels]]);
       else if(!canInvite(id))say(e,e.dialogue+(state.festival?` Your bandmates have more invitations planned. Check in with ${currentQuest()?.name||'the band'} at the stage.`:' Play your first concert, then ask the bandmates about inviting more of us.'));
-      else say(e,e.invitation,[['Join our music',()=>{if(!canInvite(id)||state.guests.includes(id))return;state.guests.push(id);persist();refresh();sound.audition(id);say(e,`I’m in! Listen for my ${e.part.toLowerCase()}. I’ll play and dance right here, so the whole village can be our stage.`,[['Lovely. Let’s keep wandering',closePanels]]);toast(questCount()===currentQuest().guests.length?`All four friends are in! Return to ${currentQuest().name}.`:`${e.name} joins: ${e.part.toLowerCase()}.`);}],['Maybe in a little while',closePanels]]);
+      else say(e,e.invitation,[['Join our music',()=>{if(!canInvite(id)||state.guests.includes(id))return;state.guests.push(id);refresh();sound.audition(id);say(e,`I’m in! Listen for my ${e.part.toLowerCase()}. I’ll play and dance right here, so the whole village can be our stage.`,[['Lovely. Let’s keep wandering',closePanels]]);toast(questCount()===currentQuest().guests.length?`All four friends are in! Return to ${currentQuest().name}.`:`${e.name} joins: ${e.part.toLowerCase()}.`);}],['Maybe in a little while',closePanels]]);
       return;
     }
     if(state.festival&&['rabbit','tanuki','robot'].includes(id)){bandmateQuest(e);return;}
     if(id==='crane'){
-      if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;persist();refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
+      if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
       else say(e,state.festival?objective():joined()===3?'Three invitations delivered! Play your first concert at the stage. Your bandmates might have some ideas after that.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
     }else if(id==='rabbit'){
       if(state.rabbit)say(e,state.festival?'Listen! Our little tune has grown branches. I wonder where it will wander next.':'My theremin is all warmed up. I’m saving a place for you.');
@@ -115,24 +110,24 @@
       if(state.tanuki)say(e,'The tape still has a little wobble. That’s the nice part. Every loop is a tiny bit different.');
       else if(!state.invited)say(e,'Welcome! Mind the ribbons. I’m quite organized, except for all the things I’ve misplaced. Have you met Crane?');
       else if(state.tape)say(e,'My favorite tape! You found it! There’s a lovely warm bass line on here. I’ll bring it to the concert.',[['Give Tanuki the tape',()=>{recruit('tanuki');closePanels();}]]);
-      else{state.metTanuki=true;persist();say(e,'I’d love to play, but my ribbon-wrapped tape has gone wandering. I was having tea on the little bench south of my cottage. Perhaps I left it there?', [['I’ll look by the bench',()=>{closePanels();goTo('tape');}]]);}
+      else{state.metTanuki=true;say(e,'I’d love to play, but my ribbon-wrapped tape has gone wandering. I was having tea on the little bench south of my cottage. Perhaps I left it there?', [['I’ll look by the bench',()=>{closePanels();goTo('tape');}]]);}
     }else if(id==='tape'){
       if(!state.invited)say(e,'A little tape with a pink ribbon. Someone is going to miss this. Perhaps Crane knows who lives here.');
-      else say(e,'A pink ribbon, a handwritten label: “a very good bass line.” This must be Tanuki’s missing tape.',[['Pick up the tape',()=>{state.tape=true;persist();refresh();sound.chime();toast('A ribbon-wrapped tape, safely in your pocket.');closePanels();}]]);
+      else say(e,'A pink ribbon, a handwritten label: “a very good bass line.” This must be Tanuki’s missing tape.',[['Pick up the tape',()=>{state.tape=true;refresh();sound.chime();toast('A ribbon-wrapped tape, safely in your pocket.');closePanels();}]]);
     }else if(id==='robot'){
       if(state.robot)say(e,'BUM. tick. BUM. tick. Friendship tempo: just right.');
       else if(!state.invited)say(e,'HELLO, NEW FRIEND. Concert plans are handled by Crane. Rhythm plans are handled by me. Usually.');
       else if(state.battery)say(e,'A garden battery! It smells faintly of clover. My rhythm is coming back. May I join your band?', [['Share the battery',()=>{recruit('robot');closePanels();}]]);
-      else{state.metRobot=true;persist();say(e,'I have eight excellent beats and zero battery. Capacitor Sprout grows spare garden batteries, just west of here. Could you ask for one?', [['Let’s visit Sprout',()=>{closePanels();goTo('sprout');}]]);}
+      else{state.metRobot=true;say(e,'I have eight excellent beats and zero battery. Capacitor Sprout grows spare garden batteries, just west of here. Could you ask for one?', [['Let’s visit Sprout',()=>{closePanels();goTo('sprout');}]]);}
     }else if(id==='sprout'){
       if(state.battery||state.robot)say(e,'Sprout sways happily. A little spare energy goes a long way. The leaves seem to be keeping time.');
       else if(!state.invited)say(e,'A tiny face peeks out between the leaves. Sprout gives you a shy little wave.');
-      else say(e,'Sprout rustles, thinks for a moment, and offers a tiny seed-shaped battery. A tag reads: “for a friend who needs a little rhythm.”', [['Thank you, Sprout',()=>{state.battery=true;persist();refresh();sound.chime();toast('A garden battery for Robot.');closePanels();}]]);
+      else say(e,'Sprout rustles, thinks for a moment, and offers a tiny seed-shaped battery. A tag reads: “for a friend who needs a little rhythm.”', [['Thank you, Sprout',()=>{state.battery=true;refresh();sound.chime();toast('A garden battery for Robot.');closePanels();}]]);
     }else if(id==='stage'){
-      if(state.festival&&state.encore===encoreQuests.length&&!state.encoreFinale)say(e,'Every invitation has found a friend. From the pond to the garden, the whole village is ready. Shall we play our encore?',[['Start the village encore',()=>{state.encoreFinale=true;persist();refresh();sound.chime();closePanels();toast('A whole village, one song. Your encore!');}]]);
+      if(state.festival&&state.encore===encoreQuests.length&&!state.encoreFinale)say(e,'Every invitation has found a friend. From the pond to the garden, the whole village is ready. Shall we play our encore?',[['Start the village encore',()=>{state.encoreFinale=true;refresh();sound.chime();closePanels();toast('A whole village, one song. Your encore!');}]]);
       else if(state.festival)say(e,`“${sound.song.title}.” Our song keeps changing. ${objective()}`,state.encoreFinale?[['Stay and listen',closePanels]]:[['Find my next quest',openJournal]]);
       else if(joined()<3)say(e,'Lanterns overhead. A little microphone stand. Three empty places for three very good friends. The concert can begin once everyone is here.',[['Check my field notes',()=>{closePanels();openJournal();}]]);
-      else say(e,'Rabbit has a melody. Tanuki has a bass line. Robot has a pocket full of rhythm. All they need now is you.',[['Let’s play our song',()=>{state.festival=true;persist();refresh();sound.chime();closePanels();toast('A village, listening together. Your first concert!');}]]);
+      else say(e,'Rabbit has a melody. Tanuki has a bass line. Robot has a pocket full of rhythm. All they need now is you.',[['Let’s play our song',()=>{state.festival=true;refresh();sound.chime();closePanels();toast('A village, listening together. Your first concert!');}]]);
     }
   }
   function goTo(id){const e=entities().find(e=>e.id===id);if(!e)return;walkTo({x:e.x,y:e.y+42},id);toast(`Wandering over to ${id==='stage'?'the lantern stage':e.name}…`);}
@@ -152,21 +147,21 @@
     for(const [id,name,task,done] of entries){const row=document.createElement('div');row.className='journal-row';const mark=document.createElement('span');mark.className='mark';mark.textContent=done?'\u2713':'!';const content=document.createElement('div'),title=document.createElement('h3'),copy=document.createElement('p');title.textContent=name;copy.textContent=task;content.append(title,copy);const visit=document.createElement('button');visit.textContent='Visit';visit.dataset.visit=id;visit.onclick=()=>{closePanels();goTo(id);};row.append(mark,content,visit);$('journal-list').append(row);}
     const bag=[];if(state.invited)bag.push('invitations');if(state.tape&&!state.tanuki)bag.push('ribbon-wrapped tape');if(state.battery&&!state.robot)bag.push('garden battery');
     $('inventory').textContent=state.festival?`${state.guests.length} / ${VillageResidents.entities.length} neighbors in the song. Already invited friends count toward each quest.`:'In your pocket: '+(bag.join(', ')||'a little curiosity')+'.';
-    $('save-status').textContent=saveAvailable?'Your progress saves in this browser on this device.':'Browser storage is unavailable. You can play, but progress may not survive closing this page.';$('new-game').textContent='Start a new village';$('new-game').onclick=confirmNew;focusPanel('journal');
+    $('save-status').textContent='Refreshing this page starts a new village and a new song.';$('new-game').textContent='Start a new village';$('new-game').onclick=confirmNew;focusPanel('journal');
   }
-  function confirmNew(){say({name:'A fresh little beginning?',role:'Your current village will be replaced',kind:'shrimp'},'This clears this village’s quest progress and starts a new song. Your other PILAF games are untouched.',[['Keep my village',closePanels],['Start fresh',()=>{sound.stop();state=fresh();residentOffsets.clear();villageTime=0;sound=new VillageAudio(state.seed);Object.assign(player,{x:state.x,y:state.y});persist();closePanels();refresh();sound.start().catch(audioFailed);toast('A fresh morning in the village.');}]]);}
+  function confirmNew(){say({name:'A fresh little beginning?',role:'Your current village will be replaced',kind:'shrimp'},'This clears this village’s quest progress and starts a new song. Your other PILAF games are untouched.',[['Keep my village',closePanels],['Start fresh',()=>{sound.stop();state=fresh();residentOffsets.clear();villageTime=0;sound=new VillageAudio(state.seed);Object.assign(player,{x:state.x,y:state.y});closePanels();refresh();sound.start().catch(audioFailed);toast('A fresh morning in the village.');}]]);}
   function openNeighbors(){
     closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent='Your bandmates suggest new friends after the first concert. Green notes mark the invitations in your current quest.';$('journal-list').replaceChildren();
     for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=state.guests.includes(e.id)?'Playing: '+e.part:canInvite(e.id)?'Quest invitation: '+e.part:e.role;content.append(name,role);const button=document.createElement('button');button.textContent=state.guests.includes(e.id)?'Listen':'Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
     $('inventory').textContent=joined()===3?`${state.guests.length} / ${VillageResidents.entities.length} neighbors in the music. Gold ! = quest; green music note = invitation.`:'Gold ! markers show your next quest conversations.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
   }
   function audioFailed(){state.muted=true;refresh();toast('Sound couldn’t start. Tap Sound off to try again.');}
-  async function start(){started=true;paused=false;pad.hidden=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);persist();}
-  function pause(){if(!started||paused)return;paused=true;clearControls();pad.hidden=true;route=[];arrival=null;destination=null;sound.stop();persist();closePanels();$('pause-panel').hidden=false;$('resume').focus();$('pause').textContent='Resume';}
+  async function start(){started=true;paused=false;pad.hidden=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);}
+  function pause(){if(!started||paused)return;paused=true;clearControls();pad.hidden=true;route=[];arrival=null;destination=null;sound.stop();closePanels();$('pause-panel').hidden=false;$('resume').focus();$('pause').textContent='Resume';}
   function resume(){paused=false;pad.hidden=false;$('pause-panel').hidden=true;$('pause').textContent='Pause';last=performance.now();if(!state.muted)sound.start().catch(audioFailed);canvas.focus({preventScroll:true});}
   $('start').onclick=start;$('pause').onclick=()=>paused?resume():pause();$('resume').onclick=resume;$('journal-button').onclick=openJournal;$('close-journal').onclick=closePanels;$('close-dialogue').onclick=closePanels;$('interact').onclick=()=>nearest&&talk(nearest.id);
-  $('sound').onclick=async()=>{state.muted=!state.muted;if(started&&!paused&&!state.muted)await sound.start().catch(audioFailed);refresh();persist();};
-  $('volume').oninput=()=>{state.volume=Number($('volume').value)/100;refresh();persist();};
+  $('sound').onclick=async()=>{state.muted=!state.muted;if(started&&!paused&&!state.muted)await sound.start().catch(audioFailed);refresh();};
+  $('volume').oninput=()=>{state.volume=Number($('volume').value)/100;refresh();};
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.metaKey||e.altKey)return;
     if(e.key==='Tab'&&(modal||paused||!started)){const panel=$(paused?'pause-panel':modal||'welcome'),buttons=[...panel.querySelectorAll('button,a[href],input')].filter(b=>!b.disabled);if(buttons.length){const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}return;}
@@ -176,7 +171,7 @@
     if((k==='e'||k===' ')&&!e.repeat){if(nearest)talk(nearest.id);return;}if(k==='j'&&!e.repeat){openJournal();return;}keys.add(k);route=[];destination=null;arrival=null;
   });
   window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());releasePad('key:'+e.key);});canvas.addEventListener('blur',()=>keys.clear());
-  window.addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});window.addEventListener('pagehide',persist);
+  window.addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});window.addEventListener('pagehide',()=>sound.stop());
   for(const type of ['contextmenu','selectstart','dragstart'])canvas.addEventListener(type,e=>e.preventDefault());
   let pointer=null;
   canvas.addEventListener('pointerdown',e=>{if(!started||paused||modal||!e.isPrimary||e.button!==0)return;e.preventDefault();canvas.focus({preventScroll:true});pointer={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
@@ -193,7 +188,6 @@
     nearest=entities().filter(e=>Math.hypot(e.x-player.x,e.y-player.y)<85).sort((a,b)=>Math.hypot(a.x-player.x,a.y-player.y)-Math.hypot(b.x-player.x,b.y-player.y))[0]||null;
     $('interact').hidden=!nearest;if(nearest)$('interact').textContent=(nearest.id==='stage'?'Visit ':nearest.id==='tape'?'Inspect ':'Talk to ')+nearest.name;
     const place=player.y<365&&player.x>500&&player.x<900?'The Lantern Stage':player.x<480&&player.y<550?'Moonwater Pond':player.x>950&&player.y<700?'Ribbon Cottage':player.y>740?'The Battery Garden':'Lantern Lane';$('location').textContent=place;
-    if(time-lastSave>3&&player.moving){persist();lastSave=time;}
   }
   function ellipse(x,y,rx,ry,fill,stroke){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.7;ctx.stroke();}}
   function round(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.7;ctx.stroke();}}
@@ -282,5 +276,5 @@
   }
   function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2),base=r.width<700?(r.height>r.width?.62:.78):1;view.zoom=Math.max(base,r.width/W.width,r.height/W.height);view.w=r.width/view.zoom;view.h=r.height/view.zoom;canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);camera.x=Math.max(0,Math.min(W.width-view.w,player.x-view.w/2));camera.y=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));$('hint').textContent=matchMedia('(any-pointer: coarse)').matches||r.width<700?'Tap to walk, or hold the arrows · Tap a friend to talk':'Click to walk · WASD / arrows to move · E to talk';draw();}
   function frame(now){const dt=Math.min((now-last)/1000||0,.035);last=now;pad.hidden=!started||paused||!!modal;if(started&&!paused){time+=dt;update(dt);sound.tick();}if(toastUntil&&time>toastUntil){$('toast').hidden=true;toastUntil=0;}draw();requestAnimationFrame(frame);}
-  if(state.invited)$('start').textContent='Back to my village ↗';refresh();resize();window.addEventListener('resize',resize);requestAnimationFrame(frame);
+  refresh();resize();window.addEventListener('resize',resize);requestAnimationFrame(frame);
 })();
