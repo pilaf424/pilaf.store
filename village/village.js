@@ -3,12 +3,7 @@
   'use strict';
   const $=id=>document.getElementById(id),canvas=$('village'),ctx=canvas.getContext('2d');
   const W=VillageWorld,ink='#40573f',paper='#fff5db',reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  const encoreQuests=[
-    {giver:'rabbit',name:'Moon Rabbit',title:'A melody around the pond',guests:['onigiri','cat','axolotl','firefly'],request:'Our first song is lovely. Imagine a few more friends answering the melody! Could you invite Onigiri, Cat Nap, Axolotl and Circuit Firefly, then come back to me?',thanks:'Hear those little answers? The melody has friends now. Tanuki has an idea for the next part.'},
-    {giver:'tanuki',name:'Tanuki',title:'A little warmth and wobble',guests:['fox','lion','fuzz','scope'],request:'Rabbit brought the sparkle. How about some warmth underneath? Find Fox, Little Lion, Fuzz Critter and Oscilloscope Smile, then tell me how it went.',thanks:'Warm bass, fuzzy edges, tiny samples. That is a very good tape! Robot has been planning our big finish.'},
-    {giver:'robot',name:'Robot',title:'Room for the whole village',guests:['origami','daruma','mushroom','trio'],request:'FINAL FRIENDSHIP MISSION. Invite Origami Bird, Daruma, Mushroom Garden and Transistor Trio. Report back when everyone has a part!',thanks:'ALL FRIENDS ACCOUNTED FOR. The whole village is our band! Meet at the lantern stage for our encore.'}
-  ];
-  const fresh=()=>({version:1,seed:crypto.getRandomValues(new Uint32Array(1))[0],invited:false,rabbit:false,tanuki:false,robot:false,tape:false,battery:false,metTanuki:false,metRobot:false,festival:false,guests:[],encore:0,encoreAccepted:false,encoreFinale:false,x:690,y:685,volume:.35,muted:false});
+  const fresh=()=>({version:1,seed:crypto.getRandomValues(new Uint32Array(1))[0],invited:false,rabbit:false,tanuki:false,robot:false,tape:false,battery:false,metTanuki:false,metRobot:false,festival:false,guests:[],x:690,y:685,volume:.35,muted:false});
   let state=fresh();
   let sound=new VillageAudio(state.seed),started=false,paused=false,time=0,last=0,route=[],destination=null,arrival=null,nearest=null,modal=null,toastUntil=0;
   let villageTime=0;
@@ -28,9 +23,7 @@
   for(const type of ['contextmenu','selectstart','dragstart'])pad.addEventListener(type,e=>e.preventDefault());
   for(const type of ['touchstart','touchmove'])pad.addEventListener(type,e=>e.preventDefault(),{passive:false});
   const joined=()=>['rabbit','tanuki','robot'].filter(k=>state[k]).length;
-  const currentQuest=()=>state.festival?encoreQuests[state.encore]:null;
-  const questCount=()=>currentQuest()?.guests.filter(id=>state.guests.includes(id)).length||0;
-  const canInvite=id=>!!(state.encoreAccepted&&currentQuest()?.guests.includes(id));
+  const canInvite=id=>joined()===3&&VillageResidents.entities.some(e=>e.id===id);
   function entities(){return W.entities.filter(e=>e.id!=='tape'||!state.tape&&!state.tanuki).map(e=>{
     if(state[e.id]&&['rabbit','tanuki','robot'].includes(e.id))return {...e,x:{rabbit:570,tanuki:720,robot:870}[e.id],y:295};
     const offset=reduced.matches?null:residentOffsets.get(e.id);
@@ -51,15 +44,14 @@
   function toast(text){$('toast').textContent=text;$('toast').hidden=false;toastUntil=time+4;}
   function objective(){
     if(!state.invited)return 'Say hello to Crane by the village sign.';
-    if(state.festival){const q=currentQuest();if(!q)return state.encoreFinale?'The whole village is playing. Stay and dance!':'Everyone is ready! Return to the lantern stage for the encore.';if(!state.encoreAccepted)return `Talk to ${q.name} at the stage: a new quest is waiting.`;return questCount()===q.guests.length?`All four friends are in! Return to ${q.name}.`:`${q.title}: invite ${questCount()} / ${q.guests.length} friends.`;}
+    if(state.festival)return 'Ask any neighbor to join, or stay and enjoy your song.';
     if(joined()===3)return 'The band is ready! Play your first concert at the lantern stage.';
     if(state.tape&&!state.tanuki)return 'Bring the ribbon-wrapped tape back to Tanuki.';
     if(state.battery&&!state.robot)return 'Take Sprout’s garden battery to Robot.';
     return 'Invite Rabbit, Tanuki and Robot to the little stage.';
   }
   function refresh(){
-    $('objective').textContent=objective();const q=currentQuest();$('band-count').textContent=state.festival?`${q?questCount():state.guests.length} / ${q?q.guests.length:VillageResidents.entities.length}`:`${joined()} / 3`;
-    $('band-label').textContent=state.festival?(q?'quest friends':'neighbors'):'bandmates';$('chapter-label').textContent=state.festival?(q?`QUEST ${state.encore+2} · ${q.title}`:'THE VILLAGE ENCORE'):'QUEST 1 · A BAND, TOGETHER';$('guest-count').textContent=state.festival?`${state.guests.length} neighbors in the music`:'';
+    $('objective').textContent=objective();$('band-count').textContent=`${joined()} / 3`;$('band-label').textContent='bandmates';$('chapter-label').textContent=state.festival?'THE VILLAGE IS PLAYING':'A BAND, TOGETHER';$('guest-count').textContent=joined()===3?`${state.guests.length} extra voices`:'';
     sound.setLayers({rabbit:state.rabbit,tanuki:state.tanuki,robot:state.robot,festival:state.festival,guests:state.guests});
     sound.volume=state.volume;sound.muted=state.muted;sound.applyVolume();
     $('volume').value=Math.round(state.volume*100);$('sound').textContent=started&&!state.muted?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(started&&!state.muted));
@@ -82,23 +74,16 @@
     for(const [index,name] of ['Leaf ♩','Moon ♪','Star ♫'].entries()){const b=document.createElement('button');b.textContent=name;b.dataset.note=index;b.onclick=()=>{sound.preview(index);sequence.push(index);if(sequence[sequence.length-1]!==[0,2,1][sequence.length-1]){sequence=[];status.textContent='A new little tune! Try Leaf, Star, Moon again.';}else if(sequence.length===3){recruit('rabbit');say(e,'That’s it! It sounds like sunlight on the pond. I’ll bring my theremin to the stage.',['Lovely. See you there!'].map(label=>[label,closePanels]));}else status.textContent=`${sequence.length} / 3 notes remembered.`;};row.append(b);}
     extra.append(row,status);const listen=document.createElement('button');listen.textContent='Hear it again';listen.onclick=()=>{if(sound.context)[0,2,1].forEach((n,i)=>sound.note([261.63,329.63,392][n],sound.context.currentTime+i*.5,.4,.1));};extra.append(listen);
   }
-  function bandmateQuest(e){
-    const q=currentQuest();
-    if(!q){say(e,state.encoreFinale?'Look at everyone dancing! A little band became a whole village.':'Everyone has a part now. Visit the lantern stage and start our village encore.');return;}
-    if(e.id!==q.giver){say(e,`${q.name} has our next idea. Have a little chat with them here at the stage.`,[[`Go to ${q.name}`,()=>{closePanels();goTo(q.giver);}]]);return;}
-    if(!state.encoreAccepted){say(e,q.request,[['I will invite them',()=>{state.encoreAccepted=true;refresh();say(e,questCount()?`You already know ${questCount()} of these musical friends! Their invitations count. Your field notes show who is left.`:'Four names, tucked into your field notes. Come back when they have joined our song.',[['Open my quest notes',openJournal],['Let me wander',closePanels]]);}],['In a little while',closePanels]]);return;}
-    if(questCount()<q.guests.length){say(e,`${questCount()} / ${q.guests.length} friends have joined. There is still room in our song! Your field notes show the friends we are waiting for.`,[['Check the invitations',openJournal],['Back to the village',closePanels]]);return;}
-    say(e,'All four invitations delivered! Ready to hear how our band has grown?',[['Everyone is ready',()=>{if(currentQuest()!==q||questCount()!==q.guests.length)return;state.encore++;state.encoreAccepted=false;refresh();sound.chime();say(e,q.thanks,[['On to the next little adventure',closePanels]]);toast(`${q.title} complete!`);}]]);
-  }
   function talk(id){
     const e=entities().find(e=>e.id===id);if(!e)return;
     if(e.ambient){
       if(state.guests.includes(id))say(e,`Listen for my ${e.part.toLowerCase()} in our song. We take turns, so everybody gets a little space to shine.`,[['Listen to my part',()=>sound.audition(id)],['See you around the village',closePanels]]);
-      else if(!canInvite(id))say(e,e.dialogue+(state.festival?` Your bandmates have more invitations planned. Check in with ${currentQuest()?.name||'the band'} at the stage.`:' Play your first concert, then ask the bandmates about inviting more of us.'));
-      else say(e,e.invitation,[['Join our music',()=>{if(!canInvite(id)||state.guests.includes(id))return;state.guests.push(id);refresh();sound.audition(id);say(e,`I’m in! Listen for my ${e.part.toLowerCase()}. I’ll play and dance right here, so the whole village can be our stage.`,[['Lovely. Let’s keep wandering',closePanels]]);toast(questCount()===currentQuest().guests.length?`All four friends are in! Return to ${currentQuest().name}.`:`${e.name} joins: ${e.part.toLowerCase()}.`);}],['Maybe in a little while',closePanels]]);
+      else if(!canInvite(id))say(e,e.dialogue+' Bring your first three bandmates together, then anyone here can join in.');
+      else say(e,e.invitation,[['Join our music',()=>{if(!canInvite(id)||state.guests.includes(id))return;state.guests.push(id);refresh();sound.audition(id);say(e,`Listen for my ${e.part.toLowerCase()}. I will play right here!`,[['Happy to have you',closePanels]]);toast(`${e.name} joins the music!`);}],['Maybe later',closePanels]]);
+
       return;
     }
-    if(state.festival&&['rabbit','tanuki','robot'].includes(id)){bandmateQuest(e);return;}
+    if(joined()===3&&['rabbit','tanuki','robot'].includes(id)){say(e,'Our little band is ready! We could invite a few more neighbors. Ask anyone you like to play with us, or just enjoy the music together.',[['Meet the neighbors',openNeighbors],['Stay and listen',closePanels]]);return;}
     if(id==='crane'){
       if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
       else say(e,state.festival?objective():joined()===3?'Three invitations delivered! Play your first concert at the stage. Your bandmates might have some ideas after that.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
@@ -124,8 +109,7 @@
       else if(!state.invited)say(e,'A tiny face peeks out between the leaves. Sprout gives you a shy little wave.');
       else say(e,'Sprout rustles, thinks for a moment, and offers a tiny seed-shaped battery. A tag reads: “for a friend who needs a little rhythm.”', [['Thank you, Sprout',()=>{state.battery=true;refresh();sound.chime();toast('A garden battery for Robot.');closePanels();}]]);
     }else if(id==='stage'){
-      if(state.festival&&state.encore===encoreQuests.length&&!state.encoreFinale)say(e,'Every invitation has found a friend. From the pond to the garden, the whole village is ready. Shall we play our encore?',[['Start the village encore',()=>{state.encoreFinale=true;refresh();sound.chime();closePanels();toast('A whole village, one song. Your encore!');}]]);
-      else if(state.festival)say(e,`“${sound.song.title}.” Our song keeps changing. ${objective()}`,state.encoreFinale?[['Stay and listen',closePanels]]:[['Find my next quest',openJournal]]);
+      if(state.festival)say(e,`Our song is called ${sound.song.title}. Invite anyone else you like, or stay and listen. This band can be as small or as big as you want.`,[['Stay and listen',closePanels],['Meet the neighbors',openNeighbors]]);
       else if(joined()<3)say(e,'Lanterns overhead. A little microphone stand. Three empty places for three very good friends. The concert can begin once everyone is here.',[['Check my field notes',()=>{closePanels();openJournal();}]]);
       else say(e,'Rabbit has a melody. Tanuki has a bass line. Robot has a pocket full of rhythm. All they need now is you.',[['Let’s play our song',()=>{state.festival=true;refresh();sound.chime();closePanels();toast('A village, listening together. Your first concert!');}]]);
     }
@@ -133,27 +117,24 @@
   function goTo(id){const e=entities().find(e=>e.id===id);if(!e)return;walkTo({x:e.x,y:e.y+42},id);toast(`Wandering over to ${id==='stage'?'the lantern stage':e.name}…`);}
   function walkTo(point,id=null){route=W.path(player,point);destination=route.at(-1)||null;arrival=id;if(!route.length){arrival=null;toast('Try a little patch of open ground.');}}
   function openJournal(){
-    if(!started||paused)return;closePanels();const q=currentQuest();
-    $('journal-title').textContent=state.festival?(q?q.title:'The village encore.'):'A band, together.';
+    if(!started||paused)return;closePanels();
+    $('journal-title').textContent=state.festival?'A village, playing.':'A band, together.';
     $('neighbors-button').textContent='Meet the neighbors';$('neighbors-button').onclick=openNeighbors;$('new-game').hidden=false;
     $('journal-intro').textContent=state.festival?objective():state.invited?'Little favors make a very good band. Tap Visit and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';
     $('journal-list').replaceChildren();
     let entries;
-    if(state.festival){
-      if(!q)entries=[['stage','The lantern stage',state.encoreFinale?'The whole village is playing!':'Start the village encore.',state.encoreFinale]];
-      else if(!state.encoreAccepted)entries=[[q.giver,q.name,'Talk at the stage and accept the next invitation quest.',false]];
-      else entries=[...q.guests.map(id=>{const e=VillageResidents.entities.find(e=>e.id===id);return [id,e.name,state.guests.includes(id)?'Invited and playing.':e.part+' - invite this friend.',state.guests.includes(id)];}),[q.giver,q.name,questCount()===q.guests.length?'All four joined! Return and complete your quest.':'Return after all four friends have joined.',false]];
-    }else entries=(state.invited?[['rabbit','Moon Rabbit','Remember a three-note tune.'],['tanuki','Tanuki Tape Courier',state.tape?'Return the tape.':'Find the tape by the tea bench.'],['robot','Pocket Sequencer Robot',state.battery?'Bring over the garden battery.':'Ask Capacitor Sprout for a battery.'],['stage','The lantern stage','Meet here when all three friends are ready.']]:[['crane','Crane Note Delivery','Pick up the invitations.']]).map(([id,name,task])=>[id,name,state[id]?'At the stage, ready to play.':task,!!state[id]]);
+    if(state.festival)entries=[['stage','The lantern stage','Your concert is playing. Extra neighbors are entirely up to you.',true]];
+    else entries=(state.invited?[['rabbit','Moon Rabbit','Remember a three-note tune.'],['tanuki','Tanuki Tape Courier',state.tape?'Return the tape.':'Find the tape by the tea bench.'],['robot','Pocket Sequencer Robot',state.battery?'Bring over the garden battery.':'Ask Capacitor Sprout for a battery.'],['stage','The lantern stage','Meet here when all three friends are ready.']]:[['crane','Crane Note Delivery','Pick up the invitations.']]).map(([id,name,task])=>[id,name,state[id]?'At the stage, ready to play.':task,!!state[id]]);
     for(const [id,name,task,done] of entries){const row=document.createElement('div');row.className='journal-row';const mark=document.createElement('span');mark.className='mark';mark.textContent=done?'\u2713':'!';const content=document.createElement('div'),title=document.createElement('h3'),copy=document.createElement('p');title.textContent=name;copy.textContent=task;content.append(title,copy);const visit=document.createElement('button');visit.textContent='Visit';visit.dataset.visit=id;visit.onclick=()=>{closePanels();goTo(id);};row.append(mark,content,visit);$('journal-list').append(row);}
     const bag=[];if(state.invited)bag.push('invitations');if(state.tape&&!state.tanuki)bag.push('ribbon-wrapped tape');if(state.battery&&!state.robot)bag.push('garden battery');
-    $('inventory').textContent=state.festival?`${state.guests.length} / ${VillageResidents.entities.length} neighbors in the song. Already invited friends count toward each quest.`:'In your pocket: '+(bag.join(', ')||'a little curiosity')+'.';
+    $('inventory').textContent=state.festival?`${state.guests.length} extra voices in your song. Invite as many or as few friends as you like.`:'In your pocket: '+(bag.join(', ')||'a little curiosity')+'.';
     $('save-status').textContent='Refreshing this page starts a new village and a new song.';$('new-game').textContent='Start a new village';$('new-game').onclick=confirmNew;focusPanel('journal');
   }
   function confirmNew(){say({name:'A fresh little beginning?',role:'Your current village will be replaced',kind:'shrimp'},'This clears this village’s quest progress and starts a new song. Your other PILAF games are untouched.',[['Keep my village',closePanels],['Start fresh',()=>{sound.stop();state=fresh();residentOffsets.clear();villageTime=0;sound=new VillageAudio(state.seed);Object.assign(player,{x:state.x,y:state.y});closePanels();refresh();sound.start().catch(audioFailed);toast('A fresh morning in the village.');}]]);}
   function openNeighbors(){
-    closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent='Your bandmates suggest new friends after the first concert. Green notes mark the invitations in your current quest.';$('journal-list').replaceChildren();
-    for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=state.guests.includes(e.id)?'Playing: '+e.part:canInvite(e.id)?'Quest invitation: '+e.part:e.role;content.append(name,role);const button=document.createElement('button');button.textContent=state.guests.includes(e.id)?'Listen':'Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
-    $('inventory').textContent=joined()===3?`${state.guests.length} / ${VillageResidents.entities.length} neighbors in the music. Gold ! = quest; green music note = invitation.`:'Gold ! markers show your next quest conversations.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
+    closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent='After the first three bandmates, anyone here can join. There is no list to finish: choose the friends you like.';$('journal-list').replaceChildren();
+    for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=state.guests.includes(e.id)?'Playing: '+e.part:canInvite(e.id)?'Can join: '+e.part:e.role;content.append(name,role);const button=document.createElement('button');button.textContent=state.guests.includes(e.id)?'Listen':'Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
+    $('inventory').textContent=joined()===3?`${state.guests.length} extra voices. Green notes are optional invitations.`:'Gold ! markers show your next quest conversations.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
   }
   function audioFailed(){state.muted=true;refresh();toast('Sound couldn’t start. Tap Sound off to try again.');}
   async function start(){started=true;paused=false;pad.hidden=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);}
@@ -233,7 +214,7 @@
     for(const [x,y] of [[570,465],[920,570],[655,840]]){round(x,y-30,5,35,2,'#8e9f73');ellipse(x+2,y-42,15,20,'#f7dea13b');round(x-5,y-59,15,27,6,'#e6cc8d','#a5aa75');}
   }
   function drawEntity(e){
-    if(e.ambient){ellipse(e.x,e.y+1,24,7,'#526c431a');VillageResidents.draw(ctx,e.id,e.x,e.y,{time:villageTime,still:reduced.matches,dance:state.guests.includes(e.id)&&state.festival,bpm:sound.song.bpm});}
+    if(e.ambient){ellipse(e.x,e.y+1,24,7,'#526c431a');VillageResidents.draw(ctx,e.id,e.x,e.y,{time:villageTime,still:reduced.matches,dance:state.guests.includes(e.id),bpm:sound.song.bpm});}
     else if(e.kind==='sprout')sprout(e.x,e.y);
     else if(e.kind==='tape'){ellipse(e.x,e.y+2,20,6,'#7c8f5720');round(e.x-17,e.y-22,34,22,4,'#e7c9b0','#9b9672');ellipse(e.x-8,e.y-12,5,5,'#fbebcf','#9b9672');ellipse(e.x+8,e.y-12,5,5,'#fbebcf','#9b9672');line([[e.x,e.y-23],[e.x,e.y]],'#ba7f78',3);ellipse(e.x-4,e.y-25,6,3,'#d9a29b');ellipse(e.x+4,e.y-25,6,3,'#d9a29b');}
     else if(e.kind!=='stage'){ellipse(e.x,e.y+1,26,8,'#526c4320');PilafSprites.draw(ctx,e.kind,e.x,e.y,{scale:1.12,time:reduced.matches?0:villageTime,dance:state[e.id]&&state.festival});}
@@ -242,8 +223,7 @@
   function markerFor(e){
     if(e.ambient)return state.guests.includes(e.id)?'playing':canInvite(e.id)?'invite':null;
     if(e.id==='crane')return !state.invited?'quest':null;
-    if(e.id==='stage')return joined()===3&&!state.festival||state.festival&&state.encore===encoreQuests.length&&!state.encoreFinale?'quest':null;
-    const q=currentQuest();if(q&&e.id===q.giver)return !state.encoreAccepted||questCount()===q.guests.length?'quest':null;
+    if(e.id==='stage')return joined()===3&&!state.festival?'quest':null;
     if(['rabbit','tanuki','robot'].includes(e.id))return state.invited&&!state[e.id]?'quest':null;
     return state.invited&&(e.id==='tape'||e.id==='sprout'&&!state.battery&&!state.robot)?'quest':null;
   }
