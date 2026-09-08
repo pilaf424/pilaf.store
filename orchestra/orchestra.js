@@ -1,9 +1,8 @@
 (() => {
  'use strict';
- const $=id=>document.getElementById(id),players=OrchestraPlayers,audio=new OrchestraAudio(),selected=new Set(),images=new Map(),reduced=matchMedia('(prefers-reduced-motion: reduce)');
+ const $=id=>document.getElementById(id),players=OrchestraPlayers,audio=new OrchestraAudio(),selected=new Set(),reduced=matchMedia('(prefers-reduced-motion: reduce)');
  let screen='auditions',paused=false,previewId=null,previewTimer=null,transition=0,stageTime=0,lastFrame=0;
- const canvas=$('stage'),ctx=canvas.getContext('2d');
- for(const id of [...players.map(p=>p.id),'choir']){const img=new Image();img.src=`assets/${id}.svg`;images.set(id,img);}
+ const canvas=$('stage'),ctx=canvas.getContext('2d'),performancePoses=new Map();
  const band=()=>players.filter(p=>selected.has(p.id));
  function message(text){$('status').textContent=text;}
  function songInfo(){const song=audio.song;$('song-title').textContent=song.title;$('song-detail').textContent=`${song.style.genre} · ${song.bpm} BPM`;$('style').value=audio.style;$('concert-style').value=audio.style;}
@@ -18,7 +17,7 @@
  async function audition(id){if(screen!=='auditions')return;const was=previewId===id;stopPreview();audio.stop();if(was){message('Preview stopped.');return;}const p=players.find(p=>p.id===id);previewId=id;const card=document.querySelector(`[data-id="${id}"]`);card.classList.add('previewing');card.querySelector('.listen').textContent='■ Stop';card.querySelector('.listen').setAttribute('aria-pressed','true');message(`Listening to ${p.name}: ${p.instrument.toLowerCase()}${audio.muted?' (sound is muted)':''}.`);
   try{await audio.preview(p);}catch{soundError();stopPreview();return;}if(previewId!==id||screen!=='auditions')return;previewTimer=setTimeout(()=>{if(previewId===id){stopPreview();message('Like that sound? Choose them for your orchestra.');}},60/audio.song.bpm*4000+1300);
  }
- async function startConcert(){if(selected.size!==5)return;const arriving=screen!=='concert',request=++transition;stopPreview();screen='concert';paused=false;stageTime=0;$('auditions').hidden=true;$('lineup').hidden=true;$('concert').hidden=false;$('pause-overlay').hidden=true;$('pause').textContent='Pause';$('subtitle').textContent='Your five friends, playing together. Ask the rice conductor for another song anytime.';$('performer-names').replaceChildren();for(const p of band()){const tag=document.createElement('span');tag.textContent=`${p.name} · ${p.instrument}`;$('performer-names').append(tag);}resize();if(arriving){$('concert-title').focus({preventScroll:true});$('concert').scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});}message('Your orchestra is playing. Same friends, endless new songs.');
+ async function startConcert(){if(selected.size!==5)return;const arriving=screen!=='concert',request=++transition;stopPreview();performancePoses.clear();screen='concert';paused=false;stageTime=0;$('auditions').hidden=true;$('lineup').hidden=true;$('concert').hidden=false;$('pause-overlay').hidden=true;$('pause').textContent='Pause';$('subtitle').textContent='Your five friends, playing together. Ask the rice conductor for another song anytime.';$('performer-names').replaceChildren();for(const p of band()){const tag=document.createElement('span');tag.textContent=`${p.name} · ${p.instrument}`;$('performer-names').append(tag);}resize();if(arriving){$('concert-title').focus({preventScroll:true});$('concert').scrollIntoView({behavior:reduced.matches?'instant':'smooth',block:'start'});}message('Your orchestra is playing. Same friends, endless new songs.');
   try{await audio.play(band());if(request===transition&&(paused||document.hidden))audio.stop();}catch{soundError();pauseConcert();}
  }
  function pauseConcert(){if(screen!=='concert')return;transition++;paused=true;audio.stop();$('pause-overlay').hidden=false;$('pause').textContent='Continue';message('Intermission. Your five friends are waiting.');}
@@ -34,7 +33,7 @@
  function ellipse(x,y,rx,ry,color){ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
  function round(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
  function line(points,color,width=2){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke();}
- function drawImage(id,x,y,size,dance=false){const img=images.get(id);if(!img?.complete||!img.naturalWidth)return;const aspect=img.naturalWidth/img.naturalHeight,w=aspect>1?size:size*aspect,h=aspect>1?size/aspect:size,beat=stageTime*audio.song.bpm/60*Math.PI*2,phase=id.length*.7;ctx.save();ctx.translate(x,y);if(dance&&!reduced.matches){ctx.translate(Math.sin(beat*.5+phase)*2,-Math.max(0,Math.sin(beat+phase))*5);ctx.rotate(Math.sin(beat*.5+phase)*.055);}ctx.drawImage(img,-w/2,-h,w,h);ctx.restore();}
+ function drawPerformer(id,x,y,size){let performance=performancePoses.get(id)||{hit:0};if(audio.running&&!paused){performance=audio.performance(id);performancePoses.set(id,performance);}OrchestraPerformers.draw(ctx,id,x,y,size,{time:stageTime,bpm:audio.song.bpm,hit:performance.hit,still:reduced.matches});}
  function draw(){if(screen!=='concert')return;const w=canvas.width,h=canvas.height;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#dfe4ca';ctx.fillRect(0,0,w,h);const scale=Math.min(w/1000,h/680);ctx.translate((w-1000*scale)/2,(h-680*scale)/2);ctx.scale(scale,scale);
   const sky=ctx.createLinearGradient(0,0,0,500);sky.addColorStop(0,'#bdcdaa');sky.addColorStop(1,'#edf0d8');ctx.fillStyle=sky;ctx.fillRect(0,0,1000,680);
   // Tall curtains, hanging lanterns and an open fan of warm wooden floorboards.
@@ -42,14 +41,14 @@
   ellipse(500,466,480,207,'#c4ac7d');ellipse(500,442,480,207,'#e4cfa1');ellipse(500,435,480,198,'#e9d8b2');for(let y=350;y<610;y+=27)line([[95+(y-430)*.22,y],[905-(y-430)*.22,y]],'#c7b28566',1.3);
   for(const x of [170,330,500,670,830]){line([[x,0],[x,68+(x%3)*8]],'#899d75',1.5);ellipse(x,95,44,54,'#f8e4a52b');round(x-12,67,24,37,10,'#e9d193','#a3a577');}
   for(const [x,y] of [[230,290],[500,245],[770,290]]){const glow=ctx.createRadialGradient(x,y,5,x,y,155);glow.addColorStop(0,'#fff9db60');glow.addColorStop(1,'#fff9db00');ellipse(x,y,160,190,glow);}
-  round(333,124,334,50,18,'#f4eccf','#b6bf9f');ctx.fillStyle='#667d58';ctx.textAlign='center';ctx.font='19px Georgia';ctx.fillText('THE RICE ORCHESTRA',500,155);
-  const positions=[[225,325],[500,285],[775,325],[315,452],[705,452]];
-  for(const [i,p] of band().entries()){const [x,y]=positions[i];ellipse(x,y+3,58,13,'#78865a24');const active=audio.running&&audio.context.currentTime-(audio.lastHits.get(p.id)||-99)<.22;if(active)ellipse(x,y+3,62,16,'#fff7cf40');drawImage(p.id,x,y,155,true);line([[x+64,y-2],[x+64,y-65]],'#8b9470',3);line([[x+46,y],[x+64,y-6],[x+80,y]],'#8b9470',2);round(x+41,y-91,48,32,4,'#fff6db','#a4ad8a');line([[x+48,y-81],[x+81,y-81]],'#c7cbaa',1);line([[x+48,y-72],[x+81,y-72]],'#c7cbaa',1);ctx.fillStyle='#778364';ctx.font='12px system-ui';ctx.fillText(p.name.split(' ').slice(0,2).join(' '),x,y+25);}
-  ellipse(500,605,150,28,'#b59c73');round(369,582,262,25,8,'#d4bc8e','#baa16f');drawImage('choir',500,590,245,true);
+  round(333,111,334,37,15,'#f4eccf','#b6bf9f');ctx.fillStyle='#667d58';ctx.textAlign='center';ctx.font='19px Georgia';ctx.fillText('THE RICE ORCHESTRA',500,136);
+  const positions=[[225,345],[500,315],[775,345],[305,475],[715,475]];
+  for(const [i,p] of band().entries()){const [x,y]=positions[i];ellipse(x,y+3,58,13,'#78865a24');const active=audio.running&&audio.performance(p.id).hit>.2;if(active&&!reduced.matches)ellipse(x,y+3,62,16,'#fff7cf40');drawPerformer(p.id,x,y,145);line([[x+86,y-2],[x+86,y-65]],'#8b9470',3);line([[x+68,y],[x+86,y-6],[x+102,y]],'#8b9470',2);round(x+63,y-91,48,32,4,'#fff6db','#a4ad8a');line([[x+70,y-81],[x+103,y-81]],'#c7cbaa',1);line([[x+70,y-72],[x+103,y-72]],'#c7cbaa',1);ctx.fillStyle='#778364';ctx.font='12px system-ui';ctx.fillText(p.name.split(' ').slice(0,2).join(' '),x,y+25);}
+  ellipse(500,605,150,28,'#b59c73');round(369,582,262,25,8,'#d4bc8e','#baa16f');drawPerformer('choir',500,590,240);
   ctx.fillStyle='#786e50';ctx.font='12px system-ui';ctx.fillText('Rice Grain Choir · conducting',500,637);
   if(!reduced.matches&&!paused)for(let i=0;i<7;i++){const x=135+i*117+Math.sin(stageTime+i)*8,y=340-((stageTime*21+i*47)%160);ctx.fillStyle=['#a88c58','#8ea576','#b69b7e'][i%3];ctx.font='18px Georgia';ctx.fillText(i%2?'♪':'♫',x,y);}
  }
  function resize(){const rect=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(rect.width&&rect.height){canvas.width=Math.round(rect.width*d);canvas.height=Math.round(rect.height*d);}draw();}window.addEventListener('resize',resize);
- function frame(now){const dt=Math.min((now-lastFrame)/1000||0,.05);lastFrame=now;if(screen==='concert'&&!paused){audio.tick();stageTime+=dt;const phrase=Math.floor(audio.step/32);$('form').textContent=SoundGardenComposer.sectionFor(audio.song,phrase).form;}draw();requestAnimationFrame(frame);}
+ function frame(now){const dt=Math.min((now-lastFrame)/1000||0,.05);lastFrame=now;if(screen==='concert'&&!paused){audio.tick();if(audio.running)stageTime=Math.max(0,audio.context.currentTime-audio.startedAt);const phrase=Math.floor(audio.step/32);$('form').textContent=SoundGardenComposer.sectionFor(audio.song,phrase).form;}draw();requestAnimationFrame(frame);}
  songInfo();renderSelection();requestAnimationFrame(frame);
 })();
