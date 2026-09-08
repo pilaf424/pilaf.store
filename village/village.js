@@ -9,6 +9,19 @@
   try{const s=JSON.parse(localStorage.getItem(saveKey)||'null');if(s?.version===1){for(const k of ['invited','rabbit','tanuki','robot','tape','battery','metTanuki','metRobot','festival','muted'])state[k]=s[k]===true;if(Number.isInteger(s.seed))state.seed=s.seed>>>0;if(Number.isFinite(s.volume))state.volume=Math.max(0,Math.min(1,s.volume));if(Number.isFinite(s.x)&&Number.isFinite(s.y)&&!W.blocked(s.x,s.y)){state.x=s.x;state.y=s.y;}if(!state.invited){state.rabbit=state.tanuki=state.robot=state.festival=false;}if(!(state.rabbit&&state.tanuki&&state.robot))state.festival=false;}}catch{saveAvailable=false;}
   let sound=new VillageAudio(state.seed),started=false,paused=false,time=0,last=0,route=[],destination=null,arrival=null,nearest=null,modal=null,toastUntil=0,lastSave=0;
   const player={x:state.x,y:state.y,face:1,moving:false},camera={x:0,y:0},view={w:1000,h:640,zoom:1},keys=new Set();
+  const pad=$('mobile-controls'),padPointers=new Map(),padDirections=new Set(),padButtons=[...pad.querySelectorAll('[data-move]')];
+  function syncPad(){padDirections.clear();for(const {direction} of padPointers.values())padDirections.add(direction);for(const button of padButtons){const pressed=padDirections.has(button.dataset.move);button.classList.toggle('pressed',pressed);button.setAttribute('aria-pressed',String(pressed));}}
+  function releasePad(id){padPointers.delete(id);syncPad();}
+  function clearControls(){keys.clear();const held=[...padPointers];padPointers.clear();syncPad();for(const [id,{button}] of held)if(typeof id==='number'&&button.hasPointerCapture(id))button.releasePointerCapture(id);}
+  function pressPad(id,button){if(!started||paused||modal)return;padPointers.set(id,{button,direction:button.dataset.move});route=[];destination=null;arrival=null;syncPad();}
+  for(const button of padButtons){
+    button.addEventListener('pointerdown',e=>{if(e.button!==0||!started||paused||modal)return;e.preventDefault();canvas.focus({preventScroll:true});button.setPointerCapture(e.pointerId);pressPad(e.pointerId,button);});
+    for(const type of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(type,e=>releasePad(e.pointerId));
+    button.addEventListener('keydown',e=>{if([' ','Enter'].includes(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();pressPad('key:'+e.key,button);}});
+    button.addEventListener('blur',()=>{for(const [id,entry] of padPointers)if(typeof id==='string'&&entry.button===button)releasePad(id);});
+  }
+  for(const type of ['contextmenu','selectstart','dragstart'])pad.addEventListener(type,e=>e.preventDefault());
+  for(const type of ['touchstart','touchmove'])pad.addEventListener(type,e=>e.preventDefault(),{passive:false});
   const joined=()=>['rabbit','tanuki','robot'].filter(k=>state[k]).length;
   function persist(){state.x=player.x;state.y=player.y;try{localStorage.setItem(saveKey,JSON.stringify(state));saveAvailable=true;}catch{saveAvailable=false;}}
   function entities(){return W.entities.filter(e=>e.id!=='tape'||!state.tape&&!state.tanuki).map(e=>state[e.id]&&['rabbit','tanuki','robot'].includes(e.id)?{...e,x:{rabbit:630,tanuki:720,robot:810}[e.id],y:295}:e);}
@@ -28,9 +41,9 @@
     $('volume').value=Math.round(state.volume*100);$('sound').textContent=started&&!state.muted?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(started&&!state.muted));
     $('music-caption').textContent=state.festival?'The village band · a song that keeps growing':joined()?`${joined()} voices in the garden`:'A quiet garden';
   }
-  function focusPanel(id){modal=id;keys.clear();route=[];arrival=null;destination=null;player.moving=false;$(id).hidden=false;$('interact').hidden=true;$(id).querySelector('button')?.focus({preventScroll:true});}
-  function closePanels(){for(const id of ['dialogue','journal'])$(id).hidden=true;modal=null;keys.clear();canvas.focus({preventScroll:true});}
-  function portrait(kind){const c=$('portrait'),p=c.getContext('2d');p.clearRect(0,0,120,120);if(['sprout','tape','stage'].includes(kind)){p.fillStyle='#577750';p.font='40px serif';p.textAlign='center';p.fillText(kind==='sprout'?'❧':'♫',60,78);}else PilafSprites.draw(p,kind,60,97,{scale:1.2,time:0});}
+  function focusPanel(id){modal=id;clearControls();route=[];arrival=null;destination=null;player.moving=false;$(id).hidden=false;$('interact').hidden=true;pad.hidden=true;$(id).querySelector('button')?.focus({preventScroll:true});}
+  function closePanels(){for(const id of ['dialogue','journal'])$(id).hidden=true;modal=null;keys.clear();pad.hidden=!started||paused;canvas.focus({preventScroll:true});}
+  function portrait(kind){const c=$('portrait'),p=c.getContext('2d');p.clearRect(0,0,120,120);if(kind.startsWith('resident:'))VillageResidents.draw(p,kind.slice(9),60,111,{scale:1.2,still:true});else if(['sprout','tape','stage'].includes(kind)){p.fillStyle='#577750';p.font='40px serif';p.textAlign='center';p.fillText(kind==='sprout'?'❧':'♫',60,78);}else PilafSprites.draw(p,kind,60,97,{scale:1.2,time:0});}
   function say(entity,text,actions=[]){
     closePanels();$('dialogue-name').textContent=entity.name;$('dialogue-role').textContent=entity.role;$('dialogue-text').textContent=text;$('dialogue-extra').replaceChildren();$('dialogue-actions').replaceChildren();portrait(entity.kind);
     for(const [label,action] of actions){const b=document.createElement('button');b.textContent=label;b.className='primary';b.addEventListener('click',action);$('dialogue-actions').append(b);}
@@ -47,6 +60,7 @@
   }
   function talk(id){
     const e=entities().find(e=>e.id===id);if(!e)return;
+    if(e.ambient){say(e,e.dialogue);return;}
     if(id==='crane'){
       if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;persist();refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
       else say(e,joined()===3?'Three invitations delivered! I knew you were the right little shrimp for the job. The stage is waiting.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
@@ -80,16 +94,21 @@
   function goTo(id){const e=entities().find(e=>e.id===id);if(!e)return;walkTo({x:e.x,y:e.y+42},id);toast(`Wandering over to ${id==='stage'?'the lantern stage':e.name}…`);}
   function walkTo(point,id=null){route=W.path(player,point);destination=route.at(-1)||null;arrival=id;if(!route.length){arrival=null;toast('Try a little patch of open ground.');}}
   function openJournal(){
-    if(!started||paused)return;closePanels();$('journal-intro').textContent=state.invited?'Little favors make a very good band. Tap “Visit” and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';$('journal-list').replaceChildren();
+    if(!started||paused)return;closePanels();$('journal-title').textContent='A band, together.';$('neighbors-button').textContent='Meet the neighbors';$('neighbors-button').onclick=openNeighbors;$('new-game').hidden=false;$('journal-intro').textContent=state.invited?'Little favors make a very good band. Tap “Visit” and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';$('journal-list').replaceChildren();
     const entries=state.invited?[['rabbit','Moon Rabbit','Remember a three-note tune.'],['tanuki','Tanuki Tape Courier',state.tape?'Return the tape.':'Find the tape by the tea bench.'],['robot','Pocket Sequencer Robot',state.battery?'Bring over the garden battery.':'Ask Capacitor Sprout for a battery.'],['stage','The lantern stage',state.festival?'Your first concert is playing.':'Meet here when all three friends are ready.']]:[['crane','Crane Note Delivery','Pick up the invitations.']];
     for(const [id,name,task] of entries){const row=document.createElement('div');row.className='journal-row';const mark=document.createElement('span');mark.className='mark';mark.textContent=state[id]||(id==='stage'&&state.festival)?'✓':'○';const content=document.createElement('div'),title=document.createElement('h3'),copy=document.createElement('p');title.textContent=name;copy.textContent=state[id]?'At the stage, ready to play.':task;content.append(title,copy);const visit=document.createElement('button');visit.textContent='Visit';visit.dataset.visit=id;visit.onclick=()=>{closePanels();goTo(id);};row.append(mark,content,visit);$('journal-list').append(row);}
     const bag=[];if(state.invited)bag.push('invitations');if(state.tape&&!state.tanuki)bag.push('ribbon-wrapped tape');if(state.battery&&!state.robot)bag.push('garden battery');$('inventory').textContent='In your pocket: '+(bag.join(', ')||'a little curiosity')+'.';$('save-status').textContent=saveAvailable?'Your progress saves in this browser on this device.':'Browser storage is unavailable. You can play, but progress may not survive closing this page.';$('new-game').textContent='Start a new village';$('new-game').onclick=confirmNew;focusPanel('journal');
   }
   function confirmNew(){say({name:'A fresh little beginning?',role:'Your current village will be replaced',kind:'shrimp'},'This clears this village’s quest progress and starts a new song. Your other PILAF games are untouched.',[['Keep my village',closePanels],['Start fresh',()=>{sound.stop();state=fresh();sound=new VillageAudio(state.seed);Object.assign(player,{x:state.x,y:state.y});persist();closePanels();refresh();sound.start().catch(audioFailed);toast('A fresh morning in the village.');}]]);}
+  function openNeighbors(){
+    closePanels();$('journal-title').textContent='A village full of friends.';$('journal-intro').textContent='Thirteen more neighbors from the PILAF collection. Visit anyone for a little conversation.';$('journal-list').replaceChildren();
+    for(const e of VillageResidents.entities){const row=document.createElement('div');row.className='journal-row';const content=document.createElement('div'),name=document.createElement('h3'),role=document.createElement('p');name.textContent=e.name;role.textContent=e.role;content.append(name,role);const button=document.createElement('button');button.textContent='Visit';button.dataset.visit=e.id;button.onclick=()=>{closePanels();goTo(e.id);};row.append(content,button);$('journal-list').append(row);}
+    $('inventory').textContent='Your three band invitations are still in the quest notes.';$('neighbors-button').textContent='Back to my quest';$('neighbors-button').onclick=openJournal;$('new-game').hidden=true;focusPanel('journal');
+  }
   function audioFailed(){state.muted=true;refresh();toast('Sound couldn’t start. Tap Sound off to try again.');}
-  async function start(){started=true;paused=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);persist();}
-  function pause(){if(!started||paused)return;paused=true;keys.clear();route=[];arrival=null;destination=null;sound.stop();persist();closePanels();$('pause-panel').hidden=false;$('resume').focus();$('pause').textContent='Resume';}
-  function resume(){paused=false;$('pause-panel').hidden=true;$('pause').textContent='Pause';last=performance.now();if(!state.muted)sound.start().catch(audioFailed);canvas.focus({preventScroll:true});}
+  async function start(){started=true;paused=false;pad.hidden=false;$('welcome').hidden=true;$('pause').disabled=false;canvas.focus({preventScroll:true});refresh();if(!state.muted)await sound.start().catch(audioFailed);persist();}
+  function pause(){if(!started||paused)return;paused=true;clearControls();pad.hidden=true;route=[];arrival=null;destination=null;sound.stop();persist();closePanels();$('pause-panel').hidden=false;$('resume').focus();$('pause').textContent='Resume';}
+  function resume(){paused=false;pad.hidden=false;$('pause-panel').hidden=true;$('pause').textContent='Pause';last=performance.now();if(!state.muted)sound.start().catch(audioFailed);canvas.focus({preventScroll:true});}
   $('start').onclick=start;$('pause').onclick=()=>paused?resume():pause();$('resume').onclick=resume;$('journal-button').onclick=openJournal;$('close-journal').onclick=closePanels;$('close-dialogue').onclick=closePanels;$('interact').onclick=()=>nearest&&talk(nearest.id);
   $('sound').onclick=async()=>{state.muted=!state.muted;if(started&&!paused&&!state.muted)await sound.start().catch(audioFailed);refresh();persist();};
   $('volume').oninput=()=>{state.volume=Number($('volume').value)/100;refresh();persist();};
@@ -101,7 +120,7 @@
     const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d','e',' ','j'].includes(k))e.preventDefault();
     if((k==='e'||k===' ')&&!e.repeat){if(nearest)talk(nearest.id);return;}if(k==='j'&&!e.repeat){openJournal();return;}keys.add(k);route=[];destination=null;arrival=null;
   });
-  window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));canvas.addEventListener('blur',()=>keys.clear());
+  window.addEventListener('keyup',e=>{keys.delete(e.key.toLowerCase());releasePad('key:'+e.key);});canvas.addEventListener('blur',()=>keys.clear());
   window.addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});window.addEventListener('pagehide',persist);
   for(const type of ['contextmenu','selectstart','dragstart'])canvas.addEventListener(type,e=>e.preventDefault());
   let pointer=null;
@@ -110,7 +129,7 @@
   for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>pointer=null);
   function update(dt){
     if(!started||paused||modal){player.moving=false;return;}
-    let dx=(keys.has('arrowright')||keys.has('d')?1:0)-(keys.has('arrowleft')||keys.has('a')?1:0),dy=(keys.has('arrowdown')||keys.has('s')?1:0)-(keys.has('arrowup')||keys.has('w')?1:0);
+    let dx=(keys.has('arrowright')||keys.has('d')||padDirections.has('right')?1:0)-(keys.has('arrowleft')||keys.has('a')||padDirections.has('left')?1:0),dy=(keys.has('arrowdown')||keys.has('s')||padDirections.has('down')?1:0)-(keys.has('arrowup')||keys.has('w')||padDirections.has('up')?1:0);
     const manual=!!(dx||dy);
     if(route.length&&!dx&&!dy){let p=route[0],dist=Math.hypot(p.x-player.x,p.y-player.y);if(dist<5){route.shift();p=route[0];}if(p){dx=p.x-player.x;dy=p.y-player.y;}else{destination=null;if(arrival){const id=arrival;arrival=null;const e=entities().find(e=>e.id===id);if(e&&Math.hypot(player.x-e.x,player.y-e.y)<90){talk(id);return;}}}}
     const len=Math.hypot(dx,dy),speed=165*dt;player.moving=len>0;
@@ -164,12 +183,13 @@
     for(const [x,y] of [[570,465],[920,570],[655,840]]){round(x,y-30,5,35,2,'#8e9f73');ellipse(x+2,y-42,15,20,'#f7dea13b');round(x-5,y-59,15,27,6,'#e6cc8d','#a5aa75');}
   }
   function drawEntity(e){
-    if(e.kind==='sprout')sprout(e.x,e.y);
+    if(e.ambient){ellipse(e.x,e.y+1,24,7,'#526c431a');VillageResidents.draw(ctx,e.id,e.x,e.y,{time,still:reduced.matches});}
+    else if(e.kind==='sprout')sprout(e.x,e.y);
     else if(e.kind==='tape'){ellipse(e.x,e.y+2,20,6,'#7c8f5720');round(e.x-17,e.y-22,34,22,4,'#e7c9b0','#9b9672');ellipse(e.x-8,e.y-12,5,5,'#fbebcf','#9b9672');ellipse(e.x+8,e.y-12,5,5,'#fbebcf','#9b9672');line([[e.x,e.y-23],[e.x,e.y]],'#ba7f78',3);ellipse(e.x-4,e.y-25,6,3,'#d9a29b');ellipse(e.x+4,e.y-25,6,3,'#d9a29b');}
     else if(e.kind!=='stage'){ellipse(e.x,e.y+1,26,8,'#526c4320');PilafSprites.draw(ctx,e.kind,e.x,e.y,{scale:1.12,time:reduced.matches?0:time,dance:state[e.id]&&state.festival});}
     const available=e.id==='crane'?!state.invited:e.id==='stage'?joined()===3&&!state.festival:['rabbit','tanuki','robot'].includes(e.id)?state.invited&&!state[e.id]:state.invited&&(e.id==='tape'||e.id==='sprout'&&!state.battery&&!state.robot);
     if(available){const y=e.y+(e.kind==='stage'?30:-88)+(reduced.matches?0:Math.sin(time*2+e.x)*3);ellipse(e.x,y,11,12,'#fcf1ce','#d3c18c');label(e.id==='tape'?'♪':'!',e.x,y+4,14,'#a8925c');}
-    if(e.kind!=='stage'){const names={crane:'Crane',rabbit:'Moon Rabbit',tanuki:'Tanuki',robot:'Robot',sprout:'Sprout',tape:'a lost tape'};label(names[e.id],e.x,e.y+21,10,'#708362');}
+    if(e.kind!=='stage'){const names={crane:'Crane',rabbit:'Moon Rabbit',tanuki:'Tanuki',robot:'Robot',sprout:'Sprout',tape:'a lost tape',onigiri:'Onigiri',cat:'Cat Nap',fox:'Fox',axolotl:'Axolotl',daruma:'Daruma',mushroom:'Mushroom Garden',origami:'Origami Bird',lion:'Little Lion',musubi:'Cable Musubi',firefly:'Firefly',scope:'Oscilloscope',fuzz:'Fuzz Critter',trio:'Transistor Trio'};label(names[e.id]||e.name,e.x,e.y+21,10,'#708362');}
   }
   function draw(){
     const tx=Math.max(0,Math.min(W.width-view.w,player.x-view.w*.5)),ty=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));camera.x+=(tx-camera.x)*.14;camera.y+=(ty-camera.y)*.14;
@@ -182,7 +202,7 @@
     // Soft edge shade keeps the world feeling like a little illustrated diorama.
     const shade=ctx.createLinearGradient(0,0,0,view.h);shade.addColorStop(0,'#80966c10');shade.addColorStop(.2,'#80966c00');shade.addColorStop(.8,'#80966c00');shade.addColorStop(1,'#7e936818');ctx.fillStyle=shade;ctx.fillRect(0,0,view.w,view.h);
   }
-  function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);view.zoom=r.width<700?.9:1;view.w=r.width/view.zoom;view.h=r.height/view.zoom;canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);camera.x=Math.max(0,Math.min(W.width-view.w,player.x-view.w/2));camera.y=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));draw();}
-  function frame(now){const dt=Math.min((now-last)/1000||0,.035);last=now;if(started&&!paused){time+=dt;update(dt);sound.tick();}if(toastUntil&&time>toastUntil){$('toast').hidden=true;toastUntil=0;}draw();requestAnimationFrame(frame);}
+  function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2),base=r.width<700?(r.height>r.width?.62:.78):1;view.zoom=Math.max(base,r.width/W.width,r.height/W.height);view.w=r.width/view.zoom;view.h=r.height/view.zoom;canvas.width=Math.round(r.width*d);canvas.height=Math.round(r.height*d);camera.x=Math.max(0,Math.min(W.width-view.w,player.x-view.w/2));camera.y=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));$('hint').textContent=matchMedia('(any-pointer: coarse)').matches||r.width<700?'Tap to walk, or hold the arrows · Tap a friend to talk':'Click to walk · WASD / arrows to move · E to talk';draw();}
+  function frame(now){const dt=Math.min((now-last)/1000||0,.035);last=now;pad.hidden=!started||paused||!!modal;if(started&&!paused){time+=dt;update(dt);sound.tick();}if(toastUntil&&time>toastUntil){$('toast').hidden=true;toastUntil=0;}draw();requestAnimationFrame(frame);}
   if(state.invited)$('start').textContent='Back to my village ↗';refresh();resize();window.addEventListener('resize',resize);requestAnimationFrame(frame);
 })();

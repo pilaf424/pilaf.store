@@ -2,13 +2,14 @@
 (() => {
   const width=1440,height=1056,cell=24;
   const entities=[
-    {id:'crane',name:'Crane Note Delivery',role:'The village postbird',x:780,y:655,kind:'crane'},
+    {id:'crane',name:'Crane Note Delivery',role:'The village postbird',x:780,y:635,kind:'crane'},
     {id:'rabbit',name:'Moon Rabbit',role:'Theremin by the pond',x:385,y:400,kind:'rabbit'},
     {id:'tanuki',name:'Tanuki Tape Courier',role:'A very careful collector. Usually.',x:1090,y:475,kind:'tanuki'},
     {id:'robot',name:'Pocket Sequencer Robot',role:'Small friend. Big rhythm.',x:850,y:815,kind:'robot'},
     {id:'sprout',name:'Capacitor Sprout',role:'A little garden resident',x:490,y:805,kind:'sprout'},
     {id:'tape',name:'A ribbon-wrapped tape',role:'Someone has misplaced a melody',x:1150,y:660,kind:'tape'},
-    {id:'stage',name:'The Lantern Stage',role:'Room for a very small band',x:720,y:340,kind:'stage'}
+    {id:'stage',name:'The Lantern Stage',role:'Room for a very small band',x:720,y:340,kind:'stage'},
+    ...VillageResidents.entities
   ];
   const obstacles=[{type:'ellipse',x:235,y:290,rx:124,ry:92},
     {type:'rect',x:1010,y:240,w:200,h:130},
