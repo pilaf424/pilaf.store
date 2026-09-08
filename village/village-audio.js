@@ -10,7 +10,6 @@
     mushroom:{slots:[0],degrees:[0],octave:0,type:'sine',length:5,level:.025,chord:true},
     origami:{slots:[2,3,7],degrees:[0,1,2],octave:12,type:'triangle',length:.65,level:.055},
     lion:{slots:[2,6],degrees:[0,1],octave:-12,type:'sine',length:1.7,level:.10},
-    musubi:{slots:[1,3,5],degrees:[2,0,1],octave:0,type:'triangle',length:.5,level:.075},
     firefly:{slots:[3,7],degrees:[2,1],octave:24,type:'sine',length:1.2,level:.045},
     scope:{slots:[0,6],degrees:[1,2],octave:0,type:'triangle',length:2,level:.06},
     fuzz:{slots:[1,5],degrees:[0,2],octave:0,type:'sawtooth',length:.3,level:.028},
@@ -56,7 +55,7 @@
         if(this.layers.robot){if(slot%2===0)this.note(slot%4===0?65:155,this.next,.09,.12,'triangle');if(slot%2)this.note(1400+(slot%3)*150,this.next,.035,.017,'triangle');}
         if(this.layers.festival&&slot%2)this.note(SoundGardenComposer.frequency(root+24+chord[this.section.counter[slot]]),this.next,duration*.6,.045);
         // Up to four guests trade places every phrase; recruiting never makes
-        // thirteen simultaneous layers overwhelm the original band.
+        // too many simultaneous layers overwhelm the original band.
         const guests=this.layers.guests||[],count=Math.min(4,guests.length);
         for(let i=0;i<count;i++)this.guestPart(guests[(phrase*3+i)%guests.length],slot,chord,this.next,duration,.85/Math.sqrt(count),phrase%3);
         this.next+=duration;this.step++;

@@ -9,14 +9,13 @@
   ['mushroom','Mushroom Synth Garden','A small patch of harmony',365,920,'A cluster of mushrooms hums three soft notes. The smallest one is trying very hard to reach the high part.'],
   ['origami','Origami Mixer Bird','Folding the sound together',930,345,'A little more melody, a little less rustle. There. Every friend deserves a place in the mix.'],
   ['lion','Little Lion Bass','A warm, rumbly bass player',905,935,'I can roar, of course. But a good bass note makes the flowers wobble without frightening anybody.'],
-  ['musubi','Cable Musubi','Helpful, if a little tangled',1210,725,'I connected the kettle to the doorbell again. It was an excellent breakfast concert.'],
   ['firefly','Circuit Firefly','The first light of the evening',400,180,'A little light blinks back at you. Once. Twice. It seems to be keeping time with the village.'],
   ['scope','Oscilloscope Smile','A face for every frequency',1100,860,'Your voice looks lovely on my little screen. Especially when you say hello.'],
   ['fuzz','Fuzz Pedal Critter','Soft friend, fuzzy sounds',590,850,'People expect me to be loud. Actually, I just like making tiny sounds a little fluffier.'],
   ['trio','Transistor Trio','Three friends, one conversation',705,950,'“We should start a trio.” “We are a trio.” “Then we’re already doing wonderfully.”']
  ];
  // Each friend keeps a home in the village, even after joining the music.
- const homes={onigiri:[680,790],cat:[1320,245],fox:[1310,600],axolotl:[125,445],daruma:[490,510],mushroom:[155,960],origami:[1000,115],lion:[1080,980],musubi:[1320,950],firefly:[300,135],scope:[1135,855],fuzz:[210,680],trio:[735,975]};
+ const homes={onigiri:[680,790],cat:[1320,245],fox:[1310,600],axolotl:[125,445],daruma:[490,510],mushroom:[155,960],origami:[1000,115],lion:[1080,980],firefly:[300,135],scope:[1135,855],fuzz:[210,680],trio:[735,975]};
  const parts={
   onigiri:['Soft bell replies','I can hear a little space between the notes. May I put a bell there?'],
   cat:['Sleepy piano','I woke up with a chord under my paw. I could bring a few more.'],
@@ -26,7 +25,6 @@
   mushroom:['Garden harmonies','The mushrooms lean closer. Three soft voices are ready to bloom.'],
   origami:['Folded arpeggios','I folded a chord into little sparkling pieces. Shall I scatter them into the music?'],
   lion:['Round bass replies','There is room beneath that tune for a warm little rumble. I promise a gentle one.'],
-  musubi:['Bouncy cable plucks','All my cables are in the right places today. Listen to this little bounce!'],
   firefly:['Twinkling high notes','The light blinks in time. A tiny, bright note answers from the grass.'],
   scope:['Wavy synth answers','Your song makes such lovely shapes. I would like to send a wave back.'],
   fuzz:['Fuzzy offbeats','Could your rhythm use a small, fluffy edge? I have just the sound.'],
