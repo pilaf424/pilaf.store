@@ -7,7 +7,7 @@
   <meta name="description" content="PILAF — personal explorations in electronic sound. Meet a little character, collect a few notes, and make something playful.">
   <title>PILAF / Little sound experiments</title>
   <link rel="icon" type="image/svg+xml" href="origami-mixer-bird.svg">
-  <link rel="stylesheet" href="style.css?v=touch-2">
+  <link rel="stylesheet" href="style.css?v=games-3">
   <script src="music.js" defer></script>
   <script src="game.js?v=touch-2" defer></script>
 </head>
@@ -21,7 +21,15 @@
     <div class="facts"><span>Sound, circuits & a little imagination</span><span>Made to be played</span><span>Personal explorations in electronic sound</span></div>
   </header>
   <main class="wrap" id="play">
-    <section aria-labelledby="game-title">
+    <section class="game-library" aria-labelledby="games-title">
+      <p class="eyebrow">Two little worlds to get lost in</p>
+      <h2 id="games-title">What shall we play?</h2>
+      <div class="game-choices">
+        <a class="game-choice" href="#sound-walk"><span class="game-choice-top"><span>01 / Sound Walk</span><span>Hop &amp; collect</span></span><h3>A little out of tune.</h3><p>Collect eight notes, find the speaker, and get the whole gang dancing.</p><span class="game-choice-action">Take a sound walk &#8595;</span></a>
+        <a class="game-choice village-choice" href="village/index.html"><span class="game-choice-top"><span>02 / The Listening Village</span><span>Explore &amp; make friends</span></span><h3>A village finding its song.</h3><p>Meet your neighbors, lend a little hand, and bring a tiny band together.</p><span class="game-choice-action">Visit the village &#8599;</span></a>
+      </div>
+    </section>
+    <section id="sound-walk" aria-labelledby="game-title">
       <div class="section-heading"><div><p class="eyebrow">The playground / experiment 01</p><h2 id="game-title">A little out of tune.</h2></div><p><span id="song-name">A new song every walk</span><br><span id="character-name">Playing as Onigiri Listener</span></p></div>
       <div class="game-shell">
         <div class="game-bar"><span class="game-name"><span class="status-dot"></span> SOUND WALK</span><span id="score">00 / 08 notes</span><button id="sound" type="button" aria-pressed="false">Sound off</button><label class="volume-control" for="volume">Volume <input id="volume" type="range" min="0" max="100" value="50" step="1"><output id="volume-value" for="volume">50%</output></label></div>
