@@ -16,5 +16,6 @@ window.OrchestraPlayers=[
  ['trio','Transistor Trio','Three-part harmony','pad','triangle',.026],
  ['tanuki','Tanuki Tape Courier','Tape bass','bass','triangle',.11],
  ['crane','Crane Note Delivery','Bamboo marimba','arp','sine',.085],
- ['shrimp','Tempura Microphone','Little brass','lead','sawtooth',.045]
+ ['shrimp','Tempura Microphone','Little brass','lead','sawtooth',.045],
+ ['vox','Mochi Vox','Synth soprano · ah / oo / ee','vocal','sawtooth',.12]
 ].map(([id,name,instrument,role,wave,level])=>({id,name,instrument,role,wave,level}));

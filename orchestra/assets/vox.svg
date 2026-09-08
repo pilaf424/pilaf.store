@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-60 -103 120 115" fill="#ddd3df" stroke="#40573f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+ <title>Mochi Vox — synth soprano</title>
+ <path d="M -12 -23 L -15 -3 M 12 -23 L 15 -3" fill="none"/><ellipse cx="-16" cy="-2" rx="8" ry="3.5"/><ellipse cx="16" cy="-2" rx="8" ry="3.5"/>
+ <path d="M -30 -27 C -40 -32 -34 -66 -22 -76 C -13 -85 12 -85 23 -76 C 34 -66 40 -32 30 -27 Q 0 -12 -30 -27 Z"/>
+ <path d="M -27 -29 Q -22 -13 -13 -25 Q -8 -8 0 -23 Q 8 -8 13 -25 Q 22 -13 27 -29 Q 0 -20 -27 -29 Z" fill="#a8beaa"/>
+ <path d="M -1 -23 L -9 -28 L -9 -18 Z M 1 -23 L 9 -28 L 9 -18 Z" fill="#fff3d5"/><circle cy="-23" r="2" fill="#d9b978"/>
+ <path d="M -15 -58 Q -12 -54 -9 -58 M 9 -58 Q 12 -54 15 -58" fill="none"/>
+ <g fill="#dba99a" stroke="none"><ellipse cx="-21" cy="-51" rx="4" ry="2"/><ellipse cx="21" cy="-51" rx="4" ry="2"/></g>
+ <ellipse cy="-45" rx="5" ry="7" fill="#40573f"/><ellipse cy="-40" rx="2.8" ry="1.2" fill="#dba99a" stroke="none"/>
+ <path d="M -29 -32 Q -24 -24 -12 -34 M 29 -32 Q 46 -32 43 -50" fill="none" stroke-width="8"/><path d="M -29 -32 Q -24 -24 -12 -34 M 29 -32 Q 46 -32 43 -50" fill="none" stroke="#ddd3df" stroke-width="4.5"/>
+ <ellipse cx="-12" cy="-34" rx="4.2" ry="3.7"/><ellipse cx="43" cy="-50" rx="4.2" ry="3.7"/>
+ <path d="M -10 -79 Q -18 -92 -5 -95 Q -2 -83 -7 -79 Z" fill="#a8beaa"/><path d="M -7 -80 Q -10 -87 -6 -91" fill="none" stroke-width="1.2"/><circle cx="-4" cy="-82" r="3" fill="#d9b978"/>
+</svg>
