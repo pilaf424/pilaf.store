@@ -44,7 +44,7 @@
   function toast(text){$('toast').textContent=text;$('toast').hidden=false;toastUntil=time+4;}
   function objective(){
     if(!state.invited)return 'Say hello to Crane by the village sign.';
-    if(state.festival)return 'Ask any neighbor to join, or stay and enjoy your song.';
+    if(state.festival)return 'Talk to a stage friend to change the song, or invite any neighbor to play.';
     if(joined()===3)return 'The band is ready! Play your first concert at the lantern stage.';
     if(state.tape&&!state.tanuki)return 'Bring the ribbon-wrapped tape back to Tanuki.';
     if(state.battery&&!state.robot)return 'Take Sprout’s garden battery to Robot.';
@@ -55,7 +55,7 @@
     sound.setLayers({rabbit:state.rabbit,tanuki:state.tanuki,robot:state.robot,festival:state.festival,guests:state.guests});
     sound.volume=state.volume;sound.muted=state.muted;sound.applyVolume();
     $('volume').value=Math.round(state.volume*100);$('sound').textContent=started&&!state.muted?'Sound on':'Sound off';$('sound').setAttribute('aria-pressed',String(started&&!state.muted));
-    $('music-caption').textContent=state.guests.length?`${state.guests.length} neighbor parts · taking turns in the song`:state.festival?'The village band · a song that keeps growing':joined()?`${joined()} voices in the garden`:'A quiet garden';
+    $('music-caption').textContent=state.festival?`${sound.song.title} · ${sound.song.style.genre}`:state.guests.length?`${state.guests.length} neighbor parts · taking turns in the song`:joined()?`${joined()} voices in the garden`:'A quiet garden';
   }
   function focusPanel(id){modal=id;clearControls();route=[];arrival=null;destination=null;player.moving=false;$(id).hidden=false;$('interact').hidden=true;pad.hidden=true;$(id).querySelector('button')?.focus({preventScroll:true});}
   function closePanels(){for(const id of ['dialogue','journal'])$(id).hidden=true;modal=null;keys.clear();pad.hidden=!started||paused;canvas.focus({preventScroll:true});}
@@ -66,7 +66,19 @@
     if(!actions.length){const b=document.createElement('button');b.textContent='See you in a little while';b.onclick=closePanels;$('dialogue-actions').append(b);}
     focusPanel('dialogue');
   }
-  function recruit(id){state[id]=true;refresh();sound.chime();toast(`${{rabbit:'Rabbit’s melody',tanuki:'Tanuki’s warm bass',robot:'Robot’s pocket rhythm'}[id]} joins the song.`);}
+  function recruit(id){state[id]=true;refresh();sound.chime();toast(`${{rabbit:'Rabbit’s melody',tanuki:'Tanuki’s tape chords',robot:'Robot’s pocket rhythm'}[id]} joins the song.`);}
+  function requestSong(e,style=sound.style){
+    if(!state.festival||!sound.changeSong(style))return;
+    state.seed=sound.song.seed;refresh();concertConversation(e);toast(`Now playing: ${sound.song.title} · ${sound.song.style.genre}`);
+  }
+  function concertConversation(e){
+    const lines={rabbit:'My theremin is ready for another tune.',tanuki:'A fresh loop? I have a whole bag of warm tape chords.',robot:'NEW SONG REQUEST RECEIVED. Rhythm circuits ready.',lion:'I’ll keep the bass warm. What shall we play?'};
+    say(e,`${lines[e.id]||'The band is listening.'} We’re playing “${sound.song.title}.” Pick a different style or ask us for another song.`,[['Play another song',()=>requestSong(e)],['Meet the neighbors',openNeighbors],['Keep playing',closePanels]]);
+    const label=document.createElement('label');label.className='song-request-style';label.textContent='Music style';label.htmlFor='village-song-style';
+    const select=document.createElement('select');select.id='village-song-style';
+    for(const [i,style] of SoundGardenComposer.styles.entries()){const option=document.createElement('option');option.value=i;option.textContent=style.genre;select.append(option);}
+    select.value=sound.style;select.onchange=()=>{requestSong(e,Number(select.value));$('village-song-style').focus({preventScroll:true});};label.append(select);$('dialogue-extra').append(label);
+  }
   function melodyPuzzle(e){
     say(e,'It goes Leaf, Star, Moon. Can you play it back? Take your time; the notes are written down below.');
     const extra=$('dialogue-extra'),pattern=document.createElement('div');pattern.className='note-pattern';pattern.textContent='Leaf ♩ → Star ♫ → Moon ♪';extra.append(pattern);
@@ -77,13 +89,17 @@
   function talk(id){
     const e=entities().find(e=>e.id===id);if(!e)return;
     if(e.ambient){
-      if(state.guests.includes(id))say(e,`Listen for my ${e.part.toLowerCase()} in our song. We take turns, so everybody gets a little space to shine.`,[['Listen to my part',()=>sound.audition(id)],['See you around the village',closePanels]]);
+      if(state.guests.includes(id))say(e,id==='lion'?'I’ll keep our bass line going while the other friends take turns. A warm little rumble beneath Tanuki’s tape chords.':`Listen for my ${e.part.toLowerCase()} in our song. We take turns, so everybody gets a little space to shine.`,[['Listen to my part',()=>sound.audition(id)],...(state.festival?[['Request a song',()=>concertConversation(e)]]:[]),['See you around the village',closePanels]]);
       else if(!canInvite(id))say(e,e.dialogue+' Bring your first three bandmates together, then anyone here can join in.');
       else say(e,e.invitation,[['Join our music',()=>{if(!canInvite(id)||state.guests.includes(id))return;state.guests.push(id);refresh();sound.audition(id);say(e,`Listen for my ${e.part.toLowerCase()}. I will play right here!`,[['Happy to have you',closePanels]]);toast(`${e.name} joins the music!`);}],['Maybe later',closePanels]]);
 
       return;
     }
-    if(joined()===3&&['rabbit','tanuki','robot'].includes(id)){say(e,'Our little band is ready! We could invite a few more neighbors. Ask anyone you like to play with us, or just enjoy the music together.',[['Meet the neighbors',openNeighbors],['Stay and listen',closePanels]]);return;}
+    if(joined()===3&&['rabbit','tanuki','robot'].includes(id)){
+      if(state.festival)concertConversation(e);
+      else say(e,'Our little band is ready! Let’s play our first concert. After that, we can take song requests and invite any neighbors you like.',[['Play our first concert',()=>{state.festival=true;refresh();sound.chime();concertConversation(e);toast('Your first village concert!');}],['Meet the neighbors',openNeighbors],['Stay and listen',closePanels]]);
+      return;
+    }
     if(id==='crane'){
       if(!state.invited)say(e,'Oh, Tempura! Perfect timing. The lanterns are up, but our stage is terribly quiet. Could you invite Rabbit, Tanuki and Robot? They each have a little something on their mind.',[['I’ll get the band together',()=>{state.invited=true;refresh();say(e,'Three invitations, tucked safely in your pocket. Rabbit is by the pond, Tanuki by the tape cottage, and Robot down in the garden. Your field notes can show you the way.',[['Let’s wander',closePanels]]);}]]);
       else say(e,state.festival?objective():joined()===3?'Three invitations delivered! Play your first concert at the stage. Your bandmates might have some ideas after that.':'No rush. A good band starts with being a good neighbor. Your field notes will help you find everyone.');
@@ -94,11 +110,11 @@
     }else if(id==='tanuki'){
       if(state.tanuki)say(e,'The tape still has a little wobble. That’s the nice part. Every loop is a tiny bit different.');
       else if(!state.invited)say(e,'Welcome! Mind the ribbons. I’m quite organized, except for all the things I’ve misplaced. Have you met Crane?');
-      else if(state.tape)say(e,'My favorite tape! You found it! There’s a lovely warm bass line on here. I’ll bring it to the concert.',[['Give Tanuki the tape',()=>{recruit('tanuki');closePanels();}]]);
+      else if(state.tape)say(e,'My favorite tape! You found it! There are lovely warm chords on here, with just a little wobble. I’ll bring my tape loops to the concert.',[['Give Tanuki the tape',()=>{recruit('tanuki');closePanels();}]]);
       else{state.metTanuki=true;say(e,'I’d love to play, but my ribbon-wrapped tape has gone wandering. I was having tea on the little bench south of my cottage. Perhaps I left it there?', [['I’ll look by the bench',()=>{closePanels();goTo('tape');}]]);}
     }else if(id==='tape'){
       if(!state.invited)say(e,'A little tape with a pink ribbon. Someone is going to miss this. Perhaps Crane knows who lives here.');
-      else say(e,'A pink ribbon, a handwritten label: “a very good bass line.” This must be Tanuki’s missing tape.',[['Pick up the tape',()=>{state.tape=true;refresh();sound.chime();toast('A ribbon-wrapped tape, safely in your pocket.');closePanels();}]]);
+      else say(e,'A pink ribbon, a handwritten label: “warm chords for good friends.” This must be Tanuki’s missing tape.',[['Pick up the tape',()=>{state.tape=true;refresh();sound.chime();toast('A ribbon-wrapped tape, safely in your pocket.');closePanels();}]]);
     }else if(id==='robot'){
       if(state.robot)say(e,'BUM. tick. BUM. tick. Friendship tempo: just right.');
       else if(!state.invited)say(e,'HELLO, NEW FRIEND. Concert plans are handled by Crane. Rhythm plans are handled by me. Usually.');
@@ -109,9 +125,9 @@
       else if(!state.invited)say(e,'A tiny face peeks out between the leaves. Sprout gives you a shy little wave.');
       else say(e,'Sprout rustles, thinks for a moment, and offers a tiny seed-shaped battery. A tag reads: “for a friend who needs a little rhythm.”', [['Thank you, Sprout',()=>{state.battery=true;refresh();sound.chime();toast('A garden battery for Robot.');closePanels();}]]);
     }else if(id==='stage'){
-      if(state.festival)say(e,`Our song is called ${sound.song.title}. Invite anyone else you like, or stay and listen. This band can be as small or as big as you want.`,[['Stay and listen',closePanels],['Meet the neighbors',openNeighbors]]);
+      if(state.festival)concertConversation(e);
       else if(joined()<3)say(e,'Lanterns overhead. A little microphone stand. Three empty places for three very good friends. The concert can begin once everyone is here.',[['Check my field notes',()=>{closePanels();openJournal();}]]);
-      else say(e,'Rabbit has a melody. Tanuki has a bass line. Robot has a pocket full of rhythm. All they need now is you.',[['Let’s play our song',()=>{state.festival=true;refresh();sound.chime();closePanels();toast('A village, listening together. Your first concert!');}]]);
+      else say(e,'Rabbit has a melody. Tanuki has warm tape chords. Robot has a pocket full of rhythm. All they need now is you.',[['Let’s play our song',()=>{state.festival=true;refresh();sound.chime();closePanels();toast('Your first concert! Talk to a stage friend to request another song.');}]]);
     }
   }
   function goTo(id){const e=entities().find(e=>e.id===id);if(!e)return;walkTo({x:e.x,y:e.y+42},id);toast(`Wandering over to ${id==='stage'?'the lantern stage':e.name}…`);}
@@ -123,7 +139,7 @@
     $('journal-intro').textContent=state.festival?objective():state.invited?'Little favors make a very good band. Tap Visit and Tempura will walk over.':'Crane has something for you. Find the postbird by the village sign.';
     $('journal-list').replaceChildren();
     let entries;
-    if(state.festival)entries=[['stage','The lantern stage','Your concert is playing. Extra neighbors are entirely up to you.',true]];
+    if(state.festival)entries=[['stage','The lantern stage','Request another song or music style. Invite extra neighbors whenever you like.',true]];
     else entries=(state.invited?[['rabbit','Moon Rabbit','Remember a three-note tune.'],['tanuki','Tanuki Tape Courier',state.tape?'Return the tape.':'Find the tape by the tea bench.'],['robot','Pocket Sequencer Robot',state.battery?'Bring over the garden battery.':'Ask Capacitor Sprout for a battery.'],['stage','The lantern stage','Meet here when all three friends are ready.']]:[['crane','Crane Note Delivery','Pick up the invitations.']]).map(([id,name,task])=>[id,name,state[id]?'At the stage, ready to play.':task,!!state[id]]);
     for(const [id,name,task,done] of entries){const row=document.createElement('div');row.className='journal-row';const mark=document.createElement('span');mark.className='mark';mark.textContent=done?'\u2713':'!';const content=document.createElement('div'),title=document.createElement('h3'),copy=document.createElement('p');title.textContent=name;copy.textContent=task;content.append(title,copy);const visit=document.createElement('button');visit.textContent='Visit';visit.dataset.visit=id;visit.onclick=()=>{closePanels();goTo(id);};row.append(mark,content,visit);$('journal-list').append(row);}
     const bag=[];if(state.invited)bag.push('invitations');if(state.tape&&!state.tanuki)bag.push('ribbon-wrapped tape');if(state.battery&&!state.robot)bag.push('garden battery');
@@ -145,7 +161,7 @@
   $('volume').oninput=()=>{state.volume=Number($('volume').value)/100;refresh();};
   document.addEventListener('keydown',e=>{
     if(e.ctrlKey||e.metaKey||e.altKey)return;
-    if(e.key==='Tab'&&(modal||paused||!started)){const panel=$(paused?'pause-panel':modal||'welcome'),buttons=[...panel.querySelectorAll('button,a[href],input')].filter(b=>!b.disabled);if(buttons.length){const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}return;}
+    if(e.key==='Tab'&&(modal||paused||!started)){const panel=$(paused?'pause-panel':modal||'welcome'),buttons=[...panel.querySelectorAll('button,a[href],input,select')].filter(b=>!b.disabled);if(buttons.length){const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}return;}
     if(e.key==='Escape'&&!e.repeat&&started){e.preventDefault();if(paused)resume();else if(modal)closePanels();else pause();return;}
     if(e.target!==canvas||!started||paused||modal)return;
     const k=e.key.toLowerCase();if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d','e',' ','j'].includes(k))e.preventDefault();
@@ -155,8 +171,14 @@
   window.addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});window.addEventListener('pagehide',()=>sound.stop());
   for(const type of ['contextmenu','selectstart','dragstart'])canvas.addEventListener(type,e=>e.preventDefault());
   let pointer=null;
+  function characterAt(point){
+    const padding=10/view.zoom;
+    // The whole visible character is tappable, including the head. Characters
+    // take priority over the stage they are standing on.
+    return entities().filter(e=>e.kind!=='stage'&&Math.abs(point.x-e.x)<42+padding&&point.y>=e.y-(e.kind==='tape'?36:100)-padding&&point.y<=e.y+12+padding).sort((a,b)=>Math.hypot(point.x-a.x,point.y-a.y+45)-Math.hypot(point.x-b.x,point.y-b.y+45))[0];
+  }
   canvas.addEventListener('pointerdown',e=>{if(!started||paused||modal||!e.isPrimary||e.button!==0)return;e.preventDefault();canvas.focus({preventScroll:true});pointer={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);});
-  canvas.addEventListener('pointerup',e=>{if(!pointer||pointer.id!==e.pointerId)return;const press=pointer;pointer=null;if(!started||paused||modal||Math.hypot(e.clientX-press.x,e.clientY-press.y)>30)return;const r=canvas.getBoundingClientRect(),p={x:(e.clientX-r.left)/view.zoom+camera.x,y:(e.clientY-r.top)/view.zoom+camera.y};const badge=entities().find(t=>{if(!markerFor(t))return false;const m=markerPosition(t);return Math.hypot(p.x-t.x,p.y-m.y)<24/view.zoom;});if(badge){if(Math.hypot(player.x-badge.x,player.y-badge.y)<85)talk(badge.id);else goTo(badge.id);return;}const target=entities().map(t=>({e:t,d:Math.hypot(p.x-t.x,p.y-(t.kind==='stage'?t.y+20:t.y-22))})).sort((a,b)=>a.d-b.d)[0];if(target&&target.d<Math.max(40,28/view.zoom)){if(Math.hypot(player.x-target.e.x,player.y-target.e.y)<85)talk(target.e.id);else goTo(target.e.id);}else walkTo(p);});
+  canvas.addEventListener('pointerup',e=>{if(!pointer||pointer.id!==e.pointerId)return;const press=pointer;pointer=null;if(!started||paused||modal||Math.hypot(e.clientX-press.x,e.clientY-press.y)>30)return;const r=canvas.getBoundingClientRect(),p={x:(e.clientX-r.left)/view.zoom+camera.x,y:(e.clientY-r.top)/view.zoom+camera.y};const badge=entities().find(t=>{if(!markerFor(t))return false;const m=markerPosition(t);return Math.hypot(p.x-t.x,p.y-m.y)<24/view.zoom;});const target=badge||characterAt(p)||entities().find(t=>t.kind==='stage'&&Math.hypot(p.x-t.x,p.y-t.y-20)<Math.max(40,28/view.zoom));if(target){if(Math.hypot(player.x-target.x,player.y-target.y)<85)talk(target.id);else goTo(target.id);}else walkTo(p);});
   for(const type of ['pointercancel','lostpointercapture'])canvas.addEventListener(type,()=>pointer=null);
   function update(dt){
     if(!started||paused||modal){player.moving=false;return;}
@@ -174,7 +196,7 @@
   function round(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.7;ctx.stroke();}}
   function line(points,color,width=2){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke();}
   function label(text,x,y,size=12,color=ink){ctx.fillStyle=color;ctx.font=`${size}px system-ui`;ctx.textAlign='center';ctx.fillText(text,x,y);}
-  function sprout(x,y){const sway=reduced.matches?0:Math.sin(time*1.7+x)*2;ellipse(x,y+2,22,7,'#586c3820');line([[x-8,y],[x-8,y-10]],ink);line([[x+8,y],[x+8,y-10]],ink);round(x-18,y-44,36,33,10,'#a6c388',ink);line([[x-16,y-34],[x+16,y-34]],'#7f9f66');line([[x,y-44],[x+sway,y-61]],'#6e8f58',2);ellipse(x-10+sway,y-57,11,5,'#a6bf80','#7b9861');ellipse(x+10+sway,y-63,12,5,'#bbcd99','#7b9861');ellipse(x-6,y-27,1.8,2.3,ink);ellipse(x+6,y-27,1.8,2.3,ink);ctx.beginPath();ctx.arc(x,y-22,4,0,Math.PI);ctx.strokeStyle=ink;ctx.stroke();}
+  function sprout(x,y){ellipse(x,y+2,22,7,'#586c3820');PilafCharacters.draw(ctx,'sprout',x,y,67,{time:villageTime,still:reduced.matches});}
   function tree(t){ellipse(t.x+10,t.y+8,t.r*.95,18,'#71895120');round(t.x-8,t.y-65,16,69,5,'#9a9c6b');ellipse(t.x,t.y-62,t.r,t.r*.8,'#819d70');ellipse(t.x-18,t.y-80,t.r*.65,t.r*.6,'#93ad7b');ellipse(t.x+16,t.y-87,t.r*.65,t.r*.65,'#a2ba84');ellipse(t.x-4,t.y-101,t.r*.5,t.r*.5,'#b1c58e');for(let i=0;i<4;i++)ellipse(t.x-25+i*17,t.y-75-(i%2)*25,3,3,'#d9ce8c');}
   function landscape(){
     ctx.fillStyle='#dae4c0';ctx.fillRect(0,0,W.width,W.height);
@@ -210,7 +232,7 @@
     // The village sign and a few residents who simply belong here.
     line([[925,662],[925,710]],'#9aa676',4);round(872,637,107,27,6,'#f5e5bb','#a5ac7c');label('make a little music',926,655,9,'#819067');
     sprout(370,730);sprout(1000,620);
-    for(let i=0;i<4;i++){const x=570+i*15+(reduced.matches?0:Math.sin(time*.5)*8),y=915+(reduced.matches?0:Math.sin(time*2+i)*2);ellipse(x,y,10,8,i===3?'#aec18d':'#d5c293','#8ca072');if(i<3)line([[x-3,y-6],[x-3,y+6]],'#a98865',2);else{ellipse(x+2,y-2,1,2,ink);line([[x+1,y-7],[x-2,y-16]],'#879d71');}}
+    PilafCharacters.draw(ctx,'caterpillar',596,932,80,{time:villageTime,still:reduced.matches});
     for(const [x,y] of [[570,465],[920,570],[655,840]]){round(x,y-30,5,35,2,'#8e9f73');ellipse(x+2,y-42,15,20,'#f7dea13b');round(x-5,y-59,15,27,6,'#e6cc8d','#a5aa75');}
   }
   function drawEntity(e){
@@ -223,8 +245,8 @@
   function markerFor(e){
     if(e.ambient)return state.guests.includes(e.id)?'playing':canInvite(e.id)?'invite':null;
     if(e.id==='crane')return !state.invited?'quest':null;
-    if(e.id==='stage')return joined()===3&&!state.festival?'quest':null;
-    if(['rabbit','tanuki','robot'].includes(e.id))return state.invited&&!state[e.id]?'quest':null;
+    if(e.id==='stage')return state.festival?'request':joined()===3?'quest':null;
+    if(['rabbit','tanuki','robot'].includes(e.id))return state.festival&&state[e.id]?'request':state.invited&&!state[e.id]?'quest':null;
     return state.invited&&(e.id==='tape'||e.id==='sprout'&&!state.battery&&!state.robot)?'quest':null;
   }
   // Draw markers after scenery and characters: trees can never cover a quest.
@@ -240,7 +262,7 @@
     ctx.save();ctx.translate(e.x,y);ctx.scale(1/view.zoom,1/view.zoom);
     ctx.shadowColor='#334b3c55';ctx.shadowBlur=6;ctx.shadowOffsetY=2;
     ctx.beginPath();ctx.arc(0,0,playing?11:17,0,Math.PI*2);ctx.fillStyle=kind==='quest'?'#ffce54':playing?'#fff5db':'#34715a';ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.strokeStyle='#fff9e8';ctx.lineWidth=3;ctx.stroke();
-    ctx.fillStyle=kind==='quest'?'#413919':playing?'#34715a':'#fff9e8';ctx.font=`bold ${playing?15:24}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(kind==='quest'?'!':'♪',0,1);ctx.restore();
+    ctx.fillStyle=kind==='quest'?'#413919':playing?'#34715a':'#fff9e8';ctx.font=`bold ${playing?15:24}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(kind==='quest'?'!':kind==='request'?'↻':'♪',0,1);ctx.restore();
   }
   function draw(){
     const tx=Math.max(0,Math.min(W.width-view.w,player.x-view.w*.5)),ty=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));camera.x+=(tx-camera.x)*.14;camera.y+=(ty-camera.y)*.14;

@@ -13,8 +13,8 @@ window.OrchestraPlayers=[
  ['firefly','Circuit Firefly','Tiny celesta','bell','sine',.055],
  ['scope','Oscilloscope Smile','Wavy reeds','keys','triangle',.065],
  ['fuzz','Fuzz Pedal Critter','Fuzzy bass','bass','sawtooth',.07],
- ['trio','Transistor Trio','Three-part harmony','pad','triangle',.026],
- ['tanuki','Tanuki Tape Courier','Tape bass','bass','triangle',.11],
+ ['trio','Transistor Trio','Tiny three-part choir','choir','sawtooth',.055],
+ ['tanuki','Tanuki Tape Courier','Warm tape chords','keys','triangle',.055],
  ['crane','Crane Note Delivery','Bamboo marimba','arp','sine',.085],
  ['shrimp','Tempura Microphone','Little brass','lead','sawtooth',.045],
  ['vox','Mochi Vox','Synth soprano · ah / oo / ee','vocal','sawtooth',.12]

@@ -24,7 +24,7 @@
   daruma:['Wooden heartbeat','Tick, tock. A little wooden heartbeat to keep everybody together?'],
   mushroom:['Garden harmonies','The mushrooms lean closer. Three soft voices are ready to bloom.'],
   origami:['Folded arpeggios','I folded a chord into little sparkling pieces. Shall I scatter them into the music?'],
-  lion:['Round bass replies','There is room beneath that tune for a warm little rumble. I promise a gentle one.'],
+  lion:['Round bass line','There is room beneath that tune for a warm little rumble. I promise a gentle one.'],
   firefly:['Twinkling high notes','The light blinks in time. A tiny, bright note answers from the grass.'],
   scope:['Wavy synth answers','Your song makes such lovely shapes. I would like to send a wave back.'],
   fuzz:['Fuzzy offbeats','Could your rhythm use a small, fluffy edge? I have just the sound.'],
@@ -35,11 +35,11 @@
  for(const e of entities){const image=new Image();image.src='assets/residents/'+e.id+'.svg';images.set(e.id,image);}
  function dancePose(id,time,bpm=90){const beat=time*bpm/60*Math.PI*2,phase=id.length*.6;return {hop:Math.max(0,Math.sin(beat+phase))*5,lean:Math.sin(beat*.5+phase)*.085,squash:Math.cos(beat+phase)*.025};}
  function draw(ctx,id,x,y,{scale=1,time=0,still=false,dance=false,bpm=90}={}){
-  const image=images.get(id);if(!image?.complete||!image.naturalWidth)return false;
-  const size=(id==='trio'?104:82)*scale,ratio=image.naturalWidth/image.naturalHeight;
-  const w=ratio>1?size:size*ratio,h=ratio>1?size/ratio:size;
-  const pose=!still&&dance?dancePose(id,time,bpm):null,bob=still?0:Math.sin(time*1.6+id.length)*1.3;
-  ctx.save();ctx.translate(x,y+(pose?-pose.hop:bob));if(pose){ctx.rotate(pose.lean);ctx.scale(1+pose.squash,1-pose.squash);}else if(!still&&id==='mushroom')ctx.rotate(Math.sin(time*1.2)*.025);if(!still&&id==='firefly'){ctx.fillStyle='#f3dea83a';ctx.beginPath();ctx.ellipse(0,-h/2,45,45,0,0,Math.PI*2);ctx.fill();}ctx.drawImage(image,-w/2,-h,w,h);ctx.restore();return true;
+  return PilafCharacters.draw(ctx,id,x,y,(id==='trio'?104:82)*scale,{
+   time,bpm,still,hit:dance?Math.max(0,Math.sin(time*bpm/60*Math.PI*2))* .85:0,
+   singing:id==='trio'&&dance?.55:0,
+  });
  }
+
  window.VillageResidents={entities,images,draw,dancePose};
 })();

@@ -23,9 +23,10 @@
    for(let slot=0;slot<8;slot++)this.perform(player,slot,0,section,start+duration*slot+(slot%2?duration*this.song.style.swing:0),duration,0,1);
   }
   voice(player,freq,when,length,level,vowel='ah'){
-   if(player.role==='vocal'){this.vocal(player,freq,when,length,level,vowel);return;}
+   if(player.role==='vocal'||player.role==='choir'){this.vocal(player,freq,when,length,level,vowel);return;}
    if(!this.context||this.voices.size>90)return;const c=this.context,osc=c.createOscillator(),gain=c.createGain(),filter=c.createBiquadFilter();
    osc.type=player.wave;osc.frequency.setValueAtTime(freq,when);filter.type='lowpass';filter.frequency.setValueAtTime(player.role==='bass'?900:player.id==='shrimp'?1600:5000,when);filter.Q.value=.5;
+   if(player.id==='tanuki'){filter.frequency.setValueAtTime(1900,when);osc.detune.setValueAtTime(-5,when);osc.detune.linearRampToValueAtTime(5,when+length*.45);osc.detune.linearRampToValueAtTime(-3,when+length);}
    const attack=player.role==='pad'?.16:player.role==='lead'?.05:.008;
    gain.gain.setValueAtTime(.0001,when);gain.gain.exponentialRampToValueAtTime(Math.max(.001,level),when+attack);gain.gain.exponentialRampToValueAtTime(.0001,when+Math.max(attack+.1,length));
    osc.connect(filter);filter.connect(gain);gain.connect(this.bus);osc.start(when);osc.stop(when+Math.max(attack+.1,length)+.03);this.voices.add(osc);osc.onended=()=>{this.voices.delete(osc);osc.disconnect();gain.disconnect();filter.disconnect();};
@@ -61,6 +62,9 @@
     if(slots.includes(slot)){const vowel=['ah','oo','ee'][(Math.floor(slot/3)+bar+section.index)%3],length=duration*(sparse?3.45:slot===6?1.5:2.55),midi=root+12+chord[(bar+slots.indexOf(slot))%3];this.voice(player,frequency(midi),when,length,level,vowel);this.markHit(player.id,when);}
    }
    else if(role==='bass'){if(style.bass.includes(slot))note(root-12+chord[slot===3||slot===7?2:0],duration*(style.groove==='ambient'?5:.85));}
+   else if(role==='choir'){
+    if((style.groove==='ambient'?[0]:[0,4]).includes(slot)){const vowel=(bar+section.index+slot/4)%2?'oo':'ah';for(const n of chord)this.voice(player,frequency(root+n),when,duration*(style.groove==='ambient'?6.5:3.3),level,vowel);this.markHit(player.id,when);}
+   }
    else if(role==='pad'){if(slot===offset*4)chord.forEach(n=>note(root+n,duration*(style.groove==='disco'?3:6),.75));}
    else if(role==='keys'){if((style.groove==='bossa'?[0,3,6]:style.groove==='disco'?[1,3,5,7]:[0,4]).includes(slot))chord.forEach(n=>note(root+n+12,duration*1.7,.55));}
    else if(role==='wood'){if((style.groove==='ambient'?[0,6]:[0,2,4,7]).includes(slot))note(root-12+chord[slot%3],.07);}

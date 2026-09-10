@@ -4,7 +4,7 @@
   const entities=[
     {id:'crane',name:'Crane Note Delivery',role:'The village postbird',x:780,y:635,kind:'crane'},
     {id:'rabbit',name:'Moon Rabbit',role:'Theremin by the pond',x:385,y:400,kind:'rabbit'},
-    {id:'tanuki',name:'Tanuki Tape Courier',role:'A very careful collector. Usually.',x:1090,y:475,kind:'tanuki'},
+    {id:'tanuki',name:'Tanuki Tape Courier',role:'Warm tape chords and little loops',x:1090,y:475,kind:'tanuki'},
     {id:'robot',name:'Pocket Sequencer Robot',role:'Small friend. Big rhythm.',x:850,y:815,kind:'robot'},
     {id:'sprout',name:'Capacitor Sprout',role:'A little garden resident',x:490,y:805,kind:'sprout'},
     {id:'tape',name:'A ribbon-wrapped tape',role:'Someone has misplaced a melody',x:1150,y:660,kind:'tape'},
