@@ -2,13 +2,24 @@
 (() => {
  const C=SoundGardenComposer,frequency=C.frequency;
  class OrchestraAudio {
-  constructor(){this.style=0;this.song=C.createSong(C.styles[0],this.seed());this.volume=.45;this.muted=false;this.voices=new Set();this.players=[];this.running=false;this.epoch=0;this.step=0;this.lastHits=new Map();this.hitEvents=new Map();this.playedHits=new Map();this.vocalEvents=[];}
+  constructor(){this.style=0;this.song=C.createSong(C.styles[0],this.seed());this.volume=.65;this.muted=false;this.voices=new Set();this.players=[];this.running=false;this.epoch=0;this.step=0;this.lastHits=new Map();this.hitEvents=new Map();this.playedHits=new Map();this.vocalEvents=[];}
   seed(){return crypto.getRandomValues(new Uint32Array(1))[0];}
   newSong(style=this.style){const previous=this.song.title;this.style=style;do{this.song=C.createSong(C.styles[style],this.seed());}while(this.song.title===previous);}
   async ready(){
-   if(!this.context){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Error('Audio is unavailable in this browser.');this.context=new Audio();this.bus=this.context.createGain();this.limiter=this.context.createDynamicsCompressor();this.limiter.threshold.value=-18;this.limiter.knee.value=12;this.limiter.ratio.value=5;this.master=this.context.createGain();this.bus.connect(this.limiter);this.limiter.connect(this.master);this.master.connect(this.context.destination);
-    this.noise=this.context.createBuffer(1,this.context.sampleRate*.3,this.context.sampleRate);const data=this.noise.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
-   }await this.context.resume();this.applyVolume();
+   if(!this.context){const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw Error('Audio is unavailable in this browser.');this.context=new Audio();this.createOutput();}
+   await this.context.resume();this.applyVolume();
+  }
+  createOutput(){
+   const c=this.context;this.bus=c.createGain();this.limiter=c.createDynamicsCompressor();this.limiter.threshold.value=-18;this.limiter.knee.value=12;this.limiter.ratio.value=5;
+   // Restore level after compression for both auditions and the full band.
+   this.makeup=c.createGain();this.makeup.gain.value=3;
+   // Keep quiet signals linear; round only loud peaks before the volume fader.
+   this.ceiling=c.createWaveShaper();const curve=new Float32Array(8193);
+   for(let i=0;i<curve.length;i++){const x=i*2/(curve.length-1)-1;curve[i]=Math.abs(x)<=.75?x:Math.sign(x)*(.75+.23*Math.tanh((Math.abs(x)-.75)/.23));}
+   this.ceiling.curve=curve;
+   this.master=c.createGain();this.master.gain.value=this.muted?0:this.volume;
+   this.bus.connect(this.limiter);this.limiter.connect(this.makeup);this.makeup.connect(this.ceiling);this.ceiling.connect(this.master);this.master.connect(c.destination);
+   this.noise=c.createBuffer(1,c.sampleRate*.3,c.sampleRate);const data=this.noise.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
   }
   applyVolume(){if(this.master)this.master.gain.setTargetAtTime(this.muted?0:this.volume,this.context.currentTime,.03);}
   stop(){this.epoch++;this.running=false;for(const node of this.voices){try{node.stop();}catch{}}this.voices.clear();this.lastHits.clear();this.hitEvents.clear();this.playedHits.clear();this.vocalEvents=[];}
