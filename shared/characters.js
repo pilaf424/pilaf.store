@@ -210,7 +210,7 @@ function drawBand(ctx,id,p){
   bandArm(ctx,24,-45,32-walking*2,-27-walking*5+gesture*3,red,1,5.5);
   sourcePart(ctx,id,[0,1,2,3,4,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,30,31,32,33,34,35,36,37,38,39,40],0,-50,58);
   // The metronome pendulum is a real pivot, separate from its dial and shell.
-  const angle=p.still?-.15:Math.sin(p.beat)*(p.play?.55:.20);
+  const angle=p.still?-.15:Math.sin(p.beat)*(p.play?.55:.20)+p.hit*.18;
   ctx.save();ctx.translate(0,-26.6);ctx.rotate(angle);
   line(ctx,[[0,0],[0,-19]],INK,1.3);box(ctx,-3,-16,6,7,.4,C.cream);ctx.restore();
   oval(ctx,0,-26.6,2.4,2.4,C.gold);oval(ctx,0,-26.6,.7,.7,INK,null);
@@ -539,7 +539,7 @@ function drawNature(ctx, id, p) {
         natureWireLeg(ctx, s.x + side * w * 0.4, -10, s.x + side * (w - 2) + step.x * 0.5, step.y * 0.7, side, INK, 1.1);
       }
       shape(ctx, `M${s.x - w},-13 Q${s.x - w - 3},-24 ${s.x - w + bend},${s.top - 1} L${s.x + w + bend},${s.top - 1} Q${s.x + w + 3},-24 ${s.x + w},-13 Q${s.x},-9 ${s.x - w},-13 Z`, C.cream, INK, 1.2);
-      const handLift = playing ? wave(5.1, s.phase) * 3.5 : wave(2.7, s.phase);
+      const handLift = (playing ? wave(5.1, s.phase) * 3.5 : wave(2.7, s.phase)) + p.hit * (i ? -3 : 3);
       joint(ctx, [[s.x - w + 1, -26], [s.x - w - 6, -23], [s.x - w - 8, -30 - handLift]], C.cream, 2.6);
       joint(ctx, [[s.x + w - 1, -27], [s.x + w + 5, -24], [s.x + w + 7, -29 + handLift]], C.cream, 2.6);
       natureFace(ctx, s.x + bend * 0.25, i ? -24 : -36, i ? 0.7 : 0.9, p);

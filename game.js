@@ -29,7 +29,7 @@
   ];
   let activeCharacter = characters[5];
   let notes, player, camera = 0, phase = 'ready', count = 0, last = 0, elapsed = 0;
-  let audio, master, audioBus, noiseBuffer, muted = true, beat = 0, nextBeat = 0, jumpRequested = false, jumpHeld = false;
+  let audio, master, audioBus, noiseBuffer, studioSynth, muted = true, beat = 0, nextBeat = 0, jumpRequested = false, jumpHeld = false;
   const sources = new Set();
   let outputVolume = Number($('volume').value) / 100;
   const keys = new Set(), touch = new Set(), controlPointers = new Map();
@@ -52,7 +52,7 @@
   }
   function stopVoices() {
     for(const source of sources) {try { source.stop(); } catch { /* Already ended. */ }}
-    sources.clear();
+    sources.clear();studioSynth?.clear();
   }
   function resetTransport() { stopVoices(); beat = 0; section = null; partyTime = 0; nextBeat = audio ? audio.currentTime+.08 : 0; $('song-evolution').textContent='Your melody is just the beginning. Stay for the next variation.'; }
   function reset(changeCharacter = true) {
@@ -89,43 +89,20 @@
         compressor.attack.value = .003; compressor.release.value = .18;
         master = audio.createGain(); master.gain.value = 0;
         audioBus.connect(compressor); compressor.connect(master); master.connect(audio.destination);
-        noiseBuffer = audio.createBuffer(1,audio.sampleRate*.25,audio.sampleRate);
-        const data = noiseBuffer.getChannelData(0);
-        for(let i=0;i<data.length;i++) data[i] = Math.random()*2-1;
+        studioSynth=new SoundGardenSynth(audio,audioBus,sources,44);noiseBuffer=studioSynth.noise;
       }
       await audio.resume(); nextBeat = audio.currentTime + .08;
       setOutput();
       if(chime && phase === 'playing') [0,2,4].forEach((index, i) => tone(pitches[index], audio.currentTime + .03 + i * .13, .25, .25, song.style.voice));
     } catch { muted = true; audioLabel(); setOutput(); $('status').textContent = 'Sound could not start. Tap Sound off to try again.'; }
   }
-  function tone(freq, when, length = .2, volume = .3, type = 'sine') {
+  function tone(freq, when, length = .2, volume = .3, type = 'sine', voice = 'keys') {
     if (!audio || muted || audio.state !== 'running') return;
-    const oscillator = audio.createOscillator(), gain = audio.createGain();
-    oscillator.type = type; oscillator.frequency.setValueAtTime(freq, when);
-    gain.gain.setValueAtTime(0, when); gain.gain.linearRampToValueAtTime(volume, when + .012);
-    gain.gain.linearRampToValueAtTime(volume * .65, when + length * .6);
-    gain.gain.exponentialRampToValueAtTime(.001, when + length);
-    let filter;
-    if(type==='square') {filter=audio.createBiquadFilter();filter.type='lowpass';filter.frequency.value=2600;oscillator.connect(filter);filter.connect(gain);} else oscillator.connect(gain);
-    gain.connect(audioBus); sources.add(oscillator); oscillator.start(when); oscillator.stop(when + length + .025);
-    oscillator.onended = () => { sources.delete(oscillator); oscillator.disconnect(); filter?.disconnect(); gain.disconnect(); };
+    studioSynth.note(freq,when,length,volume,{voice,wave:type,pan:voice==='bell'?.22:voice==='pad'?-.12:0,slide:voice==='lead'});
   }
   function drum(kind, when, levelScale=1) {
     if(!audio || muted || audio.state !== 'running') return;
-    const gain = audio.createGain(); gain.connect(audioBus);
-    let source, filter;
-    const length = kind === 'hat' ? .055 : .16;
-    const level = (kind === 'kick' ? .32 : kind === 'snare' ? .12 : .055)*levelScale;
-    if(kind === 'kick') {
-      source = audio.createOscillator(); source.frequency.setValueAtTime(145,when); source.frequency.exponentialRampToValueAtTime(48,when+.12); source.connect(gain);
-    } else {
-      source = audio.createBufferSource(); source.buffer = noiseBuffer;
-      filter = audio.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.value = kind === 'hat' ? 6500 : 1500;
-      source.connect(filter); filter.connect(gain);
-    }
-    gain.gain.setValueAtTime(0,when); gain.gain.linearRampToValueAtTime(level,when+.003); gain.gain.exponentialRampToValueAtTime(.001,when+length);
-    sources.add(source); source.start(when); source.stop(when+length+.01);
-    source.onended = () => { sources.delete(source); source.disconnect(); filter?.disconnect(); gain.disconnect(); };
+    studioSynth.drum(kind,when,(kind==='kick'?.28:kind==='snare'?.11:kind==='rim'?.075:.045)*levelScale);
   }
   function music() {
     if (!audio || audio.state !== 'running' || !count) return;
@@ -142,27 +119,33 @@
       const chord = section.chords[bar], style=song.style, groove=style.groove;
       const when = nextBeat + (slot%2 ? song.style.swing*step : 0);
       const leadLevel=(style.voice==='square'?.13:.22)*section.accents[slot];
+      const leadVoice=({ambient:'lead',mallets:'mallet',bossa:'pluck',disco:'pluck',chip:'lead',breaks:'lead'})[groove]||'keys';
       const pitch=phase==='won'?section.melody[slot]:pitches[slot];
       if(notes[slot].found && (phase!=='won'||section.gate[slot])) {
-        tone(pitch,when,step*(groove==='ambient'?1.6:.8),phase==='won'?leadLevel:leadLevel*1.2,style.voice);
-        if(style.echo) tone(pitch,when+step*3,step*.7,leadLevel*style.echo,'sine');
-        if(groove==='mallets') tone(pitch*2.01,when,.1,leadLevel*.22,'sine');
+        tone(pitch,when,step*(groove==='ambient'?2.3:1.3),phase==='won'?leadLevel:leadLevel*1.1,style.voice,leadVoice);
+        if(style.echo) tone(pitch,when+step*3,step*.9,leadLevel*style.echo*.65,'sine',leadVoice);
       }
       if(phase === 'won') {
         const offbeat=['disco','dub','bossa'].includes(groove);
-        if(offbeat ? slot%2===1 : slot===0) for(const note of chord) tone(frequency(song.root+note),when,step*(offbeat?.45:7.4),offbeat?.055:.065,'sine');
-        if(style.bass.includes(slot) && (!section.sparse || slot===0)) tone(frequency(song.root-12+chord[(slot+bar)%3]+section.bassOctave),when,step*(groove==='dub'?2:1.1),.2,'triangle');
+        if(offbeat ? slot%2===1 : slot===0) composer.voicing(song,chord,bar,true,section.bright).forEach((midi,i)=>tone(frequency(midi),when+i*.014,step*(offbeat?.85:7.4),offbeat?.046:.05,'triangle',offbeat?'keys':'pad'));
+        if(style.bass.includes(slot) && (!section.sparse || slot===0)) tone(frequency(song.root-12+chord[slot===3||slot===7?2:0]+(groove==='disco'&&slot%2?12:0)),when,step*(groove==='dub'?2:1.15),.18,'triangle','bass');
         if(!section.sparse || bar>=2) {
           if(style.kicks.includes(slot)) drum('kick',when,['bossa','mallets'].includes(groove)?.6:1);
           if(style.snares.includes(slot)) {
-            if(['bossa','mallets'].includes(groove)) tone(groove==='bossa'?1100:740,when,.045,.09,'triangle');
+            if(['bossa','mallets'].includes(groove)) drum('rim',when,.8);
             else drum('snare',when);
           }
-          if(groove!=='ambient' && (groove!=='dub' || slot%2)) drum('hat',when);
-          if(bar===3 && slot===section.fill && groove!=='ambient') drum('snare',when+step*.5);
+          if(groove!=='ambient' && (groove!=='dub' || slot%2)) drum(section.bright&&slot===7?'openhat':'hat',when,slot%2?.8:.4);
+          if(bar===3 && slot===section.fill && groove!=='ambient') drum('snare',when+step*.5,.42);
         }
-        if((section.bright || groove==='chip' || groove==='mallets') && slot%2) tone(frequency(song.root+24+chord[section.counter[slot]]),when,step*.5,.055,groove==='chip'?'square':'sine');
-      } else if(slot%2 === 0) tone(frequency(song.root),when,.13,.12,'triangle');
+        if((section.bright || groove==='chip' || groove==='mallets') && slot%2) tone(frequency(song.root+24+chord[section.counter[slot]]),when,step*.9,.045,'sine','bell');
+      } else {
+        // Collecting notes gradually builds a band, with space left for play.
+        if(count>=2&&slot===0)composer.voicing(song,chord,bar,true).forEach((midi,i)=>tone(frequency(midi),when+i*.02,step*5,.018,'triangle','pad'));
+        if(count>=4&&style.bass.includes(slot))tone(frequency(song.root-12+chord[slot===3||slot===7?2:0]),when,step*1.2,.075,'triangle','bass');
+        if(count>=6&&style.kicks.includes(slot))drum('kick',when,.38);
+        if(count>=7&&style.snares.includes(slot))drum(['bossa','mallets'].includes(groove)?'rim':'snare',when,.3);
+      }
       nextBeat += step; beat++;
     }
   }
