@@ -34,19 +34,28 @@
  function round(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke();}}
  function line(points,color,width=2){ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.stroke();}
  function drawPerformer(id,x,y,size){let performance=performancePoses.get(id)||{hit:0};if(audio.running&&!paused){performance=audio.performance(id);performancePoses.set(id,performance);}OrchestraPerformers.draw(ctx,id,x,y,size,{time:stageTime,bpm:audio.song.bpm,...performance,still:reduced.matches});}
+ function drawMusicStand(x,y){
+  line([[x,y],[x,y-56]],'#9da386',2);line([[x-13,y],[x,y-5],[x+13,y]],'#9da386',1.5);
+  round(x-21,y-79,42,27,3,'#f5ecd4','#b6b99a');
+  for(let row=0;row<3;row++)line([[x-14,y-71+row*6],[x+14,y-71+row*6]],'#d1c9ae',.8);
+ }
  function draw(){if(screen!=='concert')return;const w=canvas.width,h=canvas.height;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#dfe4ca';ctx.fillRect(0,0,w,h);const scale=Math.min(w/1000,h/680);ctx.translate((w-1000*scale)/2,(h-680*scale)/2);ctx.scale(scale,scale);
   const sky=ctx.createLinearGradient(0,0,0,500);sky.addColorStop(0,'#bdcdaa');sky.addColorStop(1,'#edf0d8');ctx.fillStyle=sky;ctx.fillRect(0,0,1000,680);
   // Tall curtains, hanging lanterns and an open fan of warm wooden floorboards.
   ctx.fillStyle='#8caa86';ctx.fillRect(0,0,72,505);ctx.fillRect(928,0,72,505);for(let i=0;i<5;i++){round(i*15-7,-20,20,440+(i%2)*18,10,i%2?'#a2b998':'#91ae88');round(937+i*15,-20,20,440+(i%2)*18,10,i%2?'#a2b998':'#91ae88');}
-  ellipse(500,466,480,207,'#c4ac7d');ellipse(500,442,480,207,'#e4cfa1');ellipse(500,435,480,198,'#e9d8b2');for(let y=350;y<610;y+=27)line([[95+(y-430)*.22,y],[905-(y-430)*.22,y]],'#c7b28566',1.3);
+  ellipse(500,466,480,207,'#c4ac7d');ellipse(500,442,480,207,'#e4cfa1');ellipse(500,435,480,198,'#e9d8b2');for(let y=330;y<610;y+=39)line([[95+(y-430)*.22,y],[905-(y-430)*.22,y]],'#c7b28535',1);
   for(const x of [170,330,500,670,830]){line([[x,0],[x,68+(x%3)*8]],'#899d75',1.5);ellipse(x,95,44,54,'#f8e4a52b');round(x-12,67,24,37,10,'#e9d193','#a3a577');}
   for(const [x,y] of [[230,290],[500,245],[770,290]]){const glow=ctx.createRadialGradient(x,y,5,x,y,155);glow.addColorStop(0,'#fff9db60');glow.addColorStop(1,'#fff9db00');ellipse(x,y,160,190,glow);}
   round(333,111,334,37,15,'#f4eccf','#b6bf9f');ctx.fillStyle='#667d58';ctx.textAlign='center';ctx.font='19px Georgia';ctx.fillText('THE RICE ORCHESTRA',500,136);
-  const positions=[[225,345],[500,315],[775,345],[305,475],[715,475]];
-  for(const [i,p] of band().entries()){const [x,y]=positions[i];ellipse(x,y+3,58,13,'#78865a24');const active=audio.running&&audio.performance(p.id).hit>.2;if(active&&!reduced.matches)ellipse(x,y+3,62,16,'#fff7cf40');drawPerformer(p.id,x,y,145);line([[x+86,y-2],[x+86,y-65]],'#8b9470',3);line([[x+68,y],[x+86,y-6],[x+102,y]],'#8b9470',2);round(x+63,y-91,48,32,4,'#fff6db','#a4ad8a');line([[x+70,y-81],[x+103,y-81]],'#c7cbaa',1);line([[x+70,y-72],[x+103,y-72]],'#c7cbaa',1);ctx.fillStyle='#778364';ctx.font='12px system-ui';ctx.fillText(p.name.split(' ').slice(0,2).join(' '),x,y+25);}
-  ellipse(500,605,150,28,'#b59c73');round(369,582,262,25,8,'#d4bc8e','#baa16f');drawPerformer('choir',500,590,240);
-  ctx.fillStyle='#786e50';ctx.font='12px system-ui';ctx.fillText('Rice Grain Choir · conducting',500,637);
-  if(!reduced.matches&&!paused)for(let i=0;i<7;i++){const x=135+i*117+Math.sin(stageTime+i)*8,y=340-((stageTime*21+i*47)%160);ctx.fillStyle=['#a88c58','#8ea576','#b69b7e'][i%3];ctx.font='18px Georgia';ctx.fillText(i%2?'♪':'♫',x,y);}
+  // Back row, front row and podium have separate depth bands. Stands are
+  // painted before each row, keeping faces and moving hands unobstructed.
+  const positions=[[230,310],[500,300],[770,310],[260,478],[740,478]],players=band();
+  for(const indices of [[0,1,2],[3,4]]){
+   for(const i of indices){if(!players[i])continue;const [x,y]=positions[i],side=i===3?-1:1;drawMusicStand(x+side*86,y-4);}
+   for(const i of indices){const p=players[i];if(!p)continue;const [x,y]=positions[i];ellipse(x,y+3,51,10,'#78865a20');const active=audio.running&&audio.performance(p.id).hit>.2;if(active&&!reduced.matches)ellipse(x,y+3,54,12,'#fff7cf30');drawPerformer(p.id,x,y,145);}
+  }
+  ellipse(500,630,111,17,'#b59c7355');round(397,609,206,19,7,'#c4a979','#baa16f');round(397,602,206,17,7,'#e1cba0','#baa16f');drawPerformer('choir',500,607,190);
+  if(!reduced.matches&&!paused)for(let i=0;i<2;i++){const x=110+i*780+Math.sin(stageTime+i)*5,y=235-((stageTime*13+i*29)%90);ctx.fillStyle='#a3ae8c';ctx.font='16px Georgia';ctx.fillText(i?'♪':'♫',x,y);}
  }
  function resize(){const rect=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(rect.width&&rect.height){canvas.width=Math.round(rect.width*d);canvas.height=Math.round(rect.height*d);}draw();}window.addEventListener('resize',resize);
  function frame(now){const dt=Math.min((now-lastFrame)/1000||0,.05);lastFrame=now;if(screen==='concert'&&!paused){audio.tick();if(audio.running)stageTime=Math.max(0,audio.context.currentTime-audio.startedAt);const phrase=Math.floor(audio.step/32);$('form').textContent=SoundGardenComposer.sectionFor(audio.song,phrase).form;}draw();requestAnimationFrame(frame);}

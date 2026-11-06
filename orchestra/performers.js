@@ -30,7 +30,14 @@
  };
  function pose(id,{time=0,bpm=100,hit=0,singing=0,vowel='ah',still=false}={}){if(still)return {hit:0,singing:0,vowel:'ah',off:0,key:0,blink:false,nod:0,tail:0,wing:0,beat:0};const phase=[...id].reduce((a,v)=>a+v.charCodeAt(0),0),beat=time*bpm/60*Math.PI*2;return {hit,singing,vowel,off:hit*Math.max(0,Math.sin(beat+1)),key:Math.floor(time*bpm/60*2+phase)%8,blink:(time+phase*.13)%4.7>4.54,nod:Math.sin(beat*.5+phase)*.035+hit*.025,tail:Math.sin(time*1.6+phase)*.12,wing:Math.sin(time*14)*.22,beat};}
  function draw(context,id,x,y,size,options={}){
-  if(id!=='vox')return PilafCharacters.draw(context,id,x,y,size,options);
+  // The stage clock and note envelope are held by the concert while paused.
+  // Keep the play pose between notes so hands remain on their instruments.
+  if(id!=='vox'){
+   const performing=options.performing??(options.state?options.state==='play':true);
+   return PilafCharacters.draw(context,id,x,y,size,{
+    ...options,performing,state:options.state||(options.moving?'walk':performing?'play':'idle'),
+   });
+  }
   c=context;c.save();c.translate(x,y);c.scale(size/115,size/115);rigs.vox(pose(id,options));c.restore();
  }
  window.OrchestraPerformers={draw,pose,ids:OrchestraPlayers.map(p=>p.id)};

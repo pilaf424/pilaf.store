@@ -198,12 +198,22 @@
   function label(text,x,y,size=12,color=ink){ctx.fillStyle=color;ctx.font=`${size}px system-ui`;ctx.textAlign='center';ctx.fillText(text,x,y);}
   function sprout(x,y){ellipse(x,y+2,22,7,'#586c3820');PilafCharacters.draw(ctx,'sprout',x,y,67,{time:villageTime,still:reduced.matches});}
   function tree(t){ellipse(t.x+10,t.y+8,t.r*.95,18,'#71895120');round(t.x-8,t.y-65,16,69,5,'#9a9c6b');ellipse(t.x,t.y-62,t.r,t.r*.8,'#819d70');ellipse(t.x-18,t.y-80,t.r*.65,t.r*.6,'#93ad7b');ellipse(t.x+16,t.y-87,t.r*.65,t.r*.65,'#a2ba84');ellipse(t.x-4,t.y-101,t.r*.5,t.r*.5,'#b1c58e');for(let i=0;i<4;i++)ellipse(t.x-25+i*17,t.y-75-(i%2)*25,3,3,'#d9ce8c');}
+  // Every raised object shares the actors' ground plane. Its anchor is where
+  // it touches the ground, so walking behind a bench or lamp reads correctly.
+  const scenery=[
+    {kind:'stage-frame',x:720,y:265,r:180},{kind:'speaker',x:590,y:298},{kind:'speaker',x:858,y:298},{kind:'microphone',x:720,y:314},
+    {kind:'cottage',x:1110,y:374,r:145},{kind:'cottage-sign',x:1111,y:411,r:80},{kind:'bench',x:1147,y:650,r:60},
+    {kind:'workbench',x:987,y:809,r:75},{kind:'sign',x:925,y:710,r:60},
+    ...[890,914,938].map(y=>({kind:'garden-row',x:482,y,r:100})),
+    {kind:'sprout',x:370,y:730},{kind:'sprout',x:1000,y:620},{kind:'caterpillar',x:596,y:932},
+    ...[[572,470],[922,575],[657,845]].map(([x,y])=>({kind:'lamp',x,y})),
+  ];
   function landscape(){
     ctx.fillStyle='#dae4c0';ctx.fillRect(0,0,W.width,W.height);
     for(const [x,y,rx,ry] of [[340,600,360,280],[1140,520,350,300],[660,970,510,150]])ellipse(x,y,rx,ry,'#e1e8c9');
     const paths=[[[720,1020],[700,730],[720,535],[715,315]],[[720,550],[525,535],[390,420]],[[720,550],[905,510],[1090,470]],[[710,745],[850,815],[1040,840]],[[710,745],[590,815],[485,825]],[[1085,485],[1125,560],[1150,665]]];
     for(const p of paths){line(p,'#cdd5b0',86);line(p,'#eae3c7',76);line(p,'#f0e9d0',56);}
-    for(let i=0;i<140;i++){const x=(i*173+71)%1390+25,y=(i*227+111)%970+60;if(W.blocked(x,y))continue;const shade=['#b2c38e','#b9c99a','#ced4a1'][i%3];line([[x-3,y],[x,y-5],[x+3,y]],shade,1.2);if(i%4===0){ellipse(x+4,y-5,3,2,'#efce9d');ellipse(x+4,y-5,1,1,'#ad9d65');}}
+    for(let i=0;i<74;i++){const x=(i*173+71)%1390+25,y=(i*227+111)%970+60;if(W.blocked(x,y)||Math.abs(x-720)<58)continue;const shade=['#b9c99a','#c2cea8','#ced4a1'][i%3];line([[x-3,y],[x,y-4],[x+3,y]],shade,1);if(i%5===0){ellipse(x+4,y-5,3,2,'#efce9d');ellipse(x+4,y-5,1,1,'#ad9d65');}}
     // The pond and its tiny wave-shaped fish.
     ellipse(235,295,137,100,'#bdcba6');ellipse(235,288,124,92,'#a9c9bc','#97b6a3');ellipse(217,270,102,73,'#b8d4c2');
     for(let i=0;i<5;i++){const y=240+i*22,x=166+(i%2)*45;line([[x,y],[x+30,y-2],[x+55,y]],'#dbe7cd',2);}
@@ -211,35 +221,49 @@
     for(const [x,y] of [[160,335],[285,230],[310,320]]){ellipse(x,y,13,6,'#86ae8c');ellipse(x+3,y-3,4,3,'#f0d4c3');}
     // Raised lantern stage, open at the front.
     ellipse(720,325,175,42,'#9bad8120');round(555,255,330,78,20,'#adba88','#829568');round(555,245,330,73,20,'#dfd5af','#96a275');for(let i=0;i<5;i++)line([[565,255+i*12],[875,255+i*12]],'#c4bb97',1);round(665,318,110,15,5,'#c9c79e');
+  }
+  function drawScenery(item){
+    const {x,y,kind}=item;
+    if(kind==='stage-frame'){
     for(const x of [560,880]){round(x-4,125,8,140,4,'#8c9d70');ellipse(x,115,15,18,'#b1c38e');}
     ctx.beginPath();ctx.moveTo(552,153);ctx.quadraticCurveTo(720,100,888,153);ctx.lineTo(888,173);ctx.quadraticCurveTo(720,126,552,173);ctx.closePath();ctx.fillStyle='#e8cf9c';ctx.fill();ctx.strokeStyle='#a5ac7b';ctx.stroke();
     ctx.beginPath();ctx.moveTo(560,170);ctx.quadraticCurveTo(720,245,880,170);ctx.strokeStyle='#8d9c70';ctx.stroke();
     for(let i=0;i<9;i++){const x=560+i*40,y=170+Math.sin(i/8*Math.PI)*36;ellipse(x,y+10,12,16,state.festival?'#f0d78b55':'#e8d49633');round(x-5,y,10,17,4,i%2?'#ddbd78':'#b9c693');}
     round(665,153,110,25,8,'#f6edd0','#b1b18a');label('the little stage',720,170,10,'#7a8967');
-    for(const x of [580,848]){round(x,262,20,36,5,'#829776',ink);ellipse(x+10,283,6,8,'#bccbaa',ink);}
-    line([[720,287],[720,314]],ink,2);ellipse(720,281,5,9,'#acc0a1',ink);
+    }else if(kind==='speaker'){
+      round(x-10,y-36,20,36,5,'#829776',ink);ellipse(x,y-15,6,8,'#bccbaa',ink);
+    }else if(kind==='microphone'){
+      line([[x,y-27],[x,y]],ink,2);ellipse(x,y-33,5,9,'#acc0a1',ink);
+    }else if(kind==='cottage'){
     // Tanuki's cottage, with a cassette-shaped window.
     ellipse(1110,374,130,18,'#788b5820');round(1010,240,200,130,14,'#f1dfb8','#a6ac7b');
     ctx.beginPath();ctx.moveTo(988,248);ctx.lineTo(1040,190);ctx.quadraticCurveTo(1110,166,1180,190);ctx.lineTo(1232,248);ctx.closePath();ctx.fillStyle='#acb889';ctx.fill();ctx.strokeStyle='#889a70';ctx.stroke();for(let i=0;i<6;i++)line([[1020+i*34,240],[1048+i*25,198]],'#bbc697',2);
     round(1088,305,43,65,18,'#a8b48c','#8fa079');ellipse(1120,341,2,2,'#f7dc92');round(1030,275,47,35,8,'#a2b7a0','#889d7c');ellipse(1042,290,7,7,'#e2dec0');ellipse(1064,290,7,7,'#e2dec0');line([[1043,304],[1064,304]],'#dce3bf');
     round(1148,276,43,31,5,'#c6d1a8');line([[1169,277],[1169,306]],'#96a780');round(1143,309,54,9,3,'#b29f75');for(let i=0;i<4;i++)ellipse(1150+i*13,306,6,6,'#879f6d');
-    round(1038,387,146,24,7,'#f7edcc','#b6ba8c');label('ribbon & reel',1111,404,11,'#7c8d65');
+    }else if(kind==='cottage-sign'){
+      round(x-73,y-24,146,24,7,'#f7edcc','#b6ba8c');label('ribbon & reel',x,y-7,11,'#7c8d65');
+    }else if(kind==='bench'){
     // A tea bench and its mug.
     round(1100,610,95,16,5,'#c3ad82','#989e70');line([[1110,625],[1110,650]],'#999970',4);line([[1185,625],[1185,650]],'#999970',4);round(1100,586,95,18,5,'#d3bd91','#989e70');round(1172,598,12,13,4,'#f8ebcf');
+    }else if(kind==='workbench'){
     // Robot's workbench, garden rows and quietly inhabited planting beds.
     round(922,755,130,54,9,'#c7bb90','#95a076');round(932,766,40,24,4,'#adc39f');for(let i=0;i<4;i++)ellipse(987+i*15,778,4,4,['#cf9b7c','#c6c58d','#a0bba1','#e0cc8e'][i]);
-    for(let i=0;i<3;i++){round(390,874+i*24,185,16,8,'#c7bb95');for(let j=0;j<7;j++){const x=403+j*24,y=876+i*24;line([[x,y],[x,y-12]],'#889e6b');ellipse(x-4,y-8,5,3,'#9eb67a');ellipse(x+4,y-12,5,3,'#b2c58a');}}
+    }else if(kind==='garden-row'){
+      round(x-92,y-16,185,16,8,'#c7bb95');for(let j=0;j<6;j++){const px=x-79+j*29,py=y-14;line([[px,py],[px,py-10]],'#889e6b');ellipse(px-4,py-6,5,3,'#9eb67a');ellipse(px+4,py-10,5,3,'#b2c58a');}
+    }else if(kind==='sign'){
     // The village sign and a few residents who simply belong here.
     line([[925,662],[925,710]],'#9aa676',4);round(872,637,107,27,6,'#f5e5bb','#a5ac7c');label('make a little music',926,655,9,'#819067');
-    sprout(370,730);sprout(1000,620);
-    PilafCharacters.draw(ctx,'caterpillar',596,932,80,{time:villageTime,still:reduced.matches});
-    for(const [x,y] of [[570,465],[920,570],[655,840]]){round(x,y-30,5,35,2,'#8e9f73');ellipse(x+2,y-42,15,20,'#f7dea13b');round(x-5,y-59,15,27,6,'#e6cc8d','#a5aa75');}
+    }else if(kind==='sprout')sprout(x,y);
+    else if(kind==='caterpillar')PilafCharacters.draw(ctx,kind,x,y,80,{time:villageTime,still:reduced.matches});
+    else if(kind==='lamp'){round(x-2,y-35,5,35,2,'#8e9f73');ellipse(x,y-47,15,20,'#f7dea13b');round(x-7,y-64,15,27,6,'#e6cc8d','#a5aa75');}
   }
   function drawEntity(e){
     if(e.ambient){ellipse(e.x,e.y+1,24,7,'#526c431a');VillageResidents.draw(ctx,e.id,e.x,e.y,{time:villageTime,still:reduced.matches,dance:state.guests.includes(e.id),bpm:sound.song.bpm});}
     else if(e.kind==='sprout')sprout(e.x,e.y);
     else if(e.kind==='tape'){ellipse(e.x,e.y+2,20,6,'#7c8f5720');round(e.x-17,e.y-22,34,22,4,'#e7c9b0','#9b9672');ellipse(e.x-8,e.y-12,5,5,'#fbebcf','#9b9672');ellipse(e.x+8,e.y-12,5,5,'#fbebcf','#9b9672');line([[e.x,e.y-23],[e.x,e.y]],'#ba7f78',3);ellipse(e.x-4,e.y-25,6,3,'#d9a29b');ellipse(e.x+4,e.y-25,6,3,'#d9a29b');}
     else if(e.kind!=='stage'){ellipse(e.x,e.y+1,26,8,'#526c4320');PilafSprites.draw(ctx,e.kind,e.x,e.y,{scale:1.12,time:reduced.matches?0:villageTime,dance:state[e.id]&&state.festival});}
+  }
+  function drawEntityLabel(e){
     if(e.kind!=='stage'){const names={crane:'Crane',rabbit:'Moon Rabbit',tanuki:'Tanuki',robot:'Robot',sprout:'Sprout',tape:'a lost tape',onigiri:'Onigiri',cat:'Cat Nap',fox:'Fox',axolotl:'Axolotl',daruma:'Daruma',mushroom:'Mushroom Garden',origami:'Origami Bird',lion:'Little Lion',firefly:'Firefly',scope:'Oscilloscope',fuzz:'Fuzz Critter',trio:'Transistor Trio'};label(names[e.id]||e.name,e.x,e.y+21,10,'#708362');}
   }
   function markerFor(e){
@@ -268,9 +292,10 @@
     const tx=Math.max(0,Math.min(W.width-view.w,player.x-view.w*.5)),ty=Math.max(0,Math.min(W.height-view.h,player.y-view.h*.55));camera.x+=(tx-camera.x)*.14;camera.y+=(ty-camera.y)*.14;
     ctx.setTransform(canvas.width/view.w,0,0,canvas.height/view.h,0,0);ctx.clearRect(0,0,view.w,view.h);ctx.save();ctx.translate(-camera.x,-camera.y);landscape();
     if(destination){ctx.setLineDash([3,6]);ctx.beginPath();ctx.moveTo(player.x,player.y);for(const p of route)ctx.lineTo(p.x,p.y);ctx.strokeStyle='#8a9e7180';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);ellipse(destination.x,destination.y,10,5,'#fff6d880','#9aad77');}
-    const things=[...W.trees.map(t=>({...t,type:'tree'})),...entities().map(e=>({...e,type:'entity'})),{...player,type:'player'}].sort((a,b)=>a.y-b.y);
-    for(const item of things){if(item.x<camera.x-100||item.x>camera.x+view.w+100||item.y<camera.y-80||item.y>camera.y+view.h+150)continue;if(item.type==='tree')tree(item);else if(item.type==='entity')drawEntity(item);else{ellipse(player.x,player.y+2,24,8,'#53664029');PilafSprites.draw(ctx,'shrimp',player.x,player.y,{scale:1.15,time:reduced.matches?0:time,moving:player.moving,face:player.face,dance:state.festival&&Math.hypot(player.x-720,player.y-330)<100});}}
-    for(const e of entities())drawMarker(e);
+    const visibleEntities=entities(),things=[...scenery.map(e=>({...e,type:'scenery'})),...W.trees.map(t=>({...t,type:'tree'})),...visibleEntities.map(e=>({...e,type:'entity'})),{...player,type:'player'}].sort((a,b)=>a.y-b.y);
+    for(const item of things){const radius=item.r||100;if(item.x+radius<camera.x||item.x-radius>camera.x+view.w||item.y<camera.y-80||item.y>camera.y+view.h+230)continue;if(item.type==='tree')tree(item);else if(item.type==='scenery')drawScenery(item);else if(item.type==='entity')drawEntity(item);else{ellipse(player.x,player.y+2,24,8,'#53664029');PilafSprites.draw(ctx,'shrimp',player.x,player.y,{scale:1.15,time:reduced.matches?0:time,moving:player.moving,face:player.face,dance:state.festival&&Math.hypot(player.x-720,player.y-330)<100});}}
+    for(const e of visibleEntities)drawEntityLabel(e);
+    for(const e of visibleEntities)drawMarker(e);
     if(state.festival&&!reduced.matches)for(let i=0;i<12;i++){const x=580+(i*37)%290+Math.sin(time+i)*8,y=270-((time*18+i*19)%100);label(i%2?'♪':'♫',x,y,13,['#b29464','#9aaa73','#c29585'][i%3]);}
     ctx.restore();
     // Soft edge shade keeps the world feeling like a little illustrated diorama.

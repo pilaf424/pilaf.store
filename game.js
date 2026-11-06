@@ -67,7 +67,7 @@
     $('character-name').textContent = `Playing as ${activeCharacter.name}`;
     $('overlay-kicker').textContent = `Meet the ${activeCharacter.name}`;
     notes = positions.map(([x,y]) => ({x,y,found:false}));
-    player = {x:65,y:floor-52,vx:0,vy:0,grounded:true,face:1,landing:0};
+    player = {x:65,y:floor-52,vx:0,vy:0,grounded:true,face:1,landing:0,stride:0,walkSpeed:0};
     particles = []; pickupLabel = null; jumpBuffer = 0; coyoteTime = .1; district = -1; hudCount = -1;
     count = 0; camera = 0; beat = 0; clearInput();
     $('score').textContent = '00 / 08 notes';
@@ -301,6 +301,7 @@
     if(!jumpHeld && !touchJumpBoost && player.vy < -280) player.vy = -280;
     player.landing = Math.max(0,player.landing-dt);
     const wasGrounded = player.grounded;
+    const previousX = player.x;
     const oldBottom = player.y + 52;
     player.x = Math.max(18,Math.min(worldWidth-58,player.x+player.vx*dt));
     player.vy += 1450*dt; player.y += player.vy*dt; player.grounded = false;
@@ -311,6 +312,10 @@
         player.y = p.y-52; player.vy = 0; player.grounded = true; break;
       }
     }
+    // Footfalls follow ground distance rather than time, including at walls.
+    const walked=wasGrounded&&player.grounded?Math.abs(player.x-previousX):0;
+    player.walkSpeed=dt>0?Math.min(1,walked/dt/235):0;
+    player.stride=(player.stride+walked*Math.PI*2/104)%(Math.PI*2);
     for(let i=0;i<notes.length;i++) {
       const n = notes[i];
       if(!n.found && Math.abs(player.x+22-n.x)<34 && Math.abs(player.y+25-n.y)<43) {
@@ -378,11 +383,11 @@
         const worldX=x+camera*depth;
         ctx.lineTo(x,base-Math.sin(worldX*.004+layer*2)*height*.46-Math.sin(worldX*.008+layer)*height*.22);
       }
-      ctx.lineTo(width+401,460);ctx.closePath();ctx.fillStyle=['#d3dbca','#becdb2','#aebf9c'][layer];ctx.fill();
+      ctx.lineTo(width+401,460);ctx.closePath();ctx.fillStyle=['#dce2d2','#cad5bd','#b9c9aa'][layer];ctx.fill();
     }
-    for(let i=0;i<16;i++) {
-      const x=i*210-camera*.48, y=313+(i%3)*13;
-      plant(x,y,1.8+(i%3)*.5,'#a1b694',0);
+    for(let i=0;i<10;i++) {
+      const x=180+i*335-camera*.48, y=313+(i%3)*13;
+      plant(x,y,1.5+(i%3)*.35,'#afc09f',0);
       if(i%3===0){line(x+38,y+15,x+38,y-62,'#a0b390',2);round(x+23,y-63,30,44,12,'#c4d0af');}
     }
     // Distant studio windows and aerials sit behind the playable garden.
@@ -399,7 +404,7 @@
     for(const x of [p.x+22,p.x+p.w-22]) {
       line(x,p.y+12,x,floor,'#9dae8b',3);
       line(x+4,p.y+15,x+4,floor,'#cbd5b8',1);
-      plant(x,floor,.65,'#839969');
+      ellipse(x,floor+1,6,2,'#a5b793');
     }
     round(p.x+1,p.y+8,p.w-2,14,5,'#819a6e','#637d57');
     round(p.x,p.y,p.w,13,5,'#c2d0a9',ink);
@@ -408,13 +413,13 @@
     if(index%2===0)for(let i=0;i<4;i++)round(p.x+p.w/2-18+i*10,p.y+4,5,5,1,'#9aad85');
     else for(let i=0;i<5;i++)line(p.x+p.w/2-16+i*8,p.y+3,p.x+p.w/2-16+i*8,p.y+10,'#91a47c',1);
   }
-  function drawWorldDetails() {
+  function drawWorldBackdrop() {
     // A glasshouse gives the middle of the walk its own silhouette.
     if(camera<1460 && camera+scene.width>1000) {
       ctx.beginPath();ctx.moveTo(1030,floor);ctx.lineTo(1030,263);ctx.quadraticCurveTo(1150,125,1270,263);ctx.lineTo(1270,floor);ctx.closePath();
-      ctx.fillStyle='#e9edd448';ctx.fill();ctx.strokeStyle='#99ac88';ctx.lineWidth=2;ctx.stroke();
-      for(const x of [1070,1110,1150,1190,1230])line(x,223+Math.abs(1150-x)*.45,x,floor,'#a6b793',1);
-      line(1030,278,1270,278,'#a6b793',1);line(1030,332,1270,332,'#a6b793',1);
+      ctx.fillStyle='#e9edd448';ctx.fill();ctx.strokeStyle='#afbea0';ctx.lineWidth=1.5;ctx.stroke();
+      for(const x of [1070,1110,1150,1190,1230])line(x,223+Math.abs(1150-x)*.45,x,floor,'#bac6aa',1);
+      line(1030,278,1270,278,'#bac6aa',1);line(1030,332,1270,332,'#bac6aa',1);
       for(const x of [1058,1134,1210]){round(x,357,27,23,3,'#b9b992');plant(x+14,357,1.4,'#8caa79');}
     }
     if(camera+scene.width>2220) {
@@ -423,11 +428,11 @@
       ctx.beginPath();ctx.moveTo(2255,213);ctx.quadraticCurveTo(2372,245,2490,213);ctx.strokeStyle='#8d9f76';ctx.stroke();
       for(let i=0;i<7;i++){const x=2255+i*39,y=214+Math.sin(i/6*Math.PI)*14;ellipse(x,y+5,3.5,5,count===8?'#e9c878':'#ccd2b2','#94a27a');}
     }
-    for(let i=0;i<46;i++) {
-      const x=i*57+23;
-      if(x<camera-80 || x>camera+scene.width+80) continue;
-      plant(x,floor,(i%4)*.16+.35,i%3?'#819869':'#66865e');
-      if(i%6===0){round(x+13,floor-16,5,16,2,'#e5dec1');ellipse(x+15,floor-17,12,6,'#c3a779','#8d8d61');ellipse(x+11,floor-19,2,1.5,'#eee5c4');}
+    for(let i=0;i<18;i++) {
+      const x=238+i*127;
+      if(x<camera-80 || x>camera+scene.width+80 || x>worldWidth-180 || notes.some(note=>Math.abs(note.x-x)<42)) continue;
+      plant(x,floor,(i%3)*.1+.32,'#97ac83');
+      if(i%5===0){round(x+13,floor-12,4,12,2,'#e5dec1');ellipse(x+15,floor-13,8,4,'#c5b28a','#a1a17e');}
     }
     for(const x of [740,1420,1980]) {
       round(x,floor-53,62,50,7,'#d9dbbc','#879775');
@@ -436,10 +441,14 @@
       ellipse(x+47,floor-31,6,6,'#bda16c','#879775');ellipse(x+47,floor-13,2,2,'#748e62');
       ctx.beginPath();ctx.moveTo(x+62,floor-12);ctx.bezierCurveTo(x+95,floor-10,x+51,floor+10,x+103,floor+4);ctx.strokeStyle='#92a47b';ctx.lineWidth=2;ctx.stroke();
     }
-    for(const x of [52,1110,2210]) {
+    for(const x of [1110,2210]) {
       line(x,floor,x,floor-124,'#69845d',3);ctx.beginPath();ctx.moveTo(x,floor-124);ctx.quadraticCurveTo(x+18,floor-139,x+33,floor-119);ctx.strokeStyle='#69845d';ctx.lineWidth=2;ctx.stroke();
       ellipse(x+32,floor-101,19,25,'#f3dd9520');round(x+23,floor-119,18,30,6,'#e5ce8e','#8c9869');line(x+24,floor-106,x+40,floor-106,'#c8b275',1);
     }
+  }
+  function drawWorldResidents() {
+    // Neighbours occupy the same foreground plane as the player. Supports
+    // and greenhouse frames are already painted before their silhouettes.
     for(const resident of [{x:230,kind:'sprout'},{x:665,kind:'caterpillar'},{x:1055,kind:'sprout'},{x:1370,kind:'caterpillar'},{x:1660,kind:'sprout'},{x:2140,kind:'caterpillar'}]) {
       if(resident.x>camera-100 && resident.x<camera+scene.width+100) drawResident(resident);
     }
@@ -447,7 +456,8 @@
   function drawResident({x,kind}) {
     const still=motionPreference.matches,near=Math.abs(player.x-x)<110;
     PilafCharacters.draw(ctx,kind,x,floor-2,kind==='sprout'?62:76,{
-      time:elapsed,still,hit:near?Math.max(0,Math.sin(elapsed*3))* .45:0,
+      time:elapsed,bpm:song.bpm,still,performing:near,state:near?'play':'idle',
+      hit:near?Math.max(0,Math.sin(elapsed*3))* .45:0,
     });
   }
   function drawSpeaker() {
@@ -464,16 +474,20 @@
     }
     round(2325,238,115,27,5,'#f5f1dfdd','#b3be9b');label(awake?'YOUR SONG →':'THE LITTLE STAGE',2335,255,10,'#58724d');
   }
-  function character(info = activeCharacter, pose = player, sway = 0, scale = 1, still = false) {
+  function character(info = activeCharacter, pose = player, scale = 1, still = false) {
     still = still || motionPreference.matches;
+    const performing = phase==='won' || (phase==='paused' && pausedFrom==='won');
+    const speed = pose.walkSpeed??Math.min(1,Math.abs(pose.vx)/235);
+    const moving = pose.grounded && speed>10/235;
     const squash = still ? 0 : Math.sin((pose.landing||0)/.18*Math.PI)*.14;
     const stretch = !still && !pose.grounded && Math.abs(pose.vy||0)>200 ? .045 : 0;
-    ctx.save();ctx.translate(pose.x+22,pose.y+52);ctx.rotate(sway);
+    ctx.save();ctx.translate(pose.x+22,pose.y+52);
     ctx.scale(scale*(1+squash-stretch),scale*(1-squash+stretch));
     PilafCharacters.draw(ctx,info.id,0,0,60,{
-      time:elapsed,still,moving:pose.grounded&&Math.abs(pose.vx)>10,
-      face:['shrimp','crane','origami'].includes(info.id)?pose.face:1,
-      hit:phase==='won'?Math.max(0,Math.sin(elapsed*3))* .85:0,
+      time:performing?partyTime:elapsed,bpm:song.bpm,still,moving,performing,
+      state:moving?'walk':performing?'play':'idle',
+      speed:moving?speed:0,stride:pose.stride,face:pose.face,
+      hit:performing?Math.max(0,Math.sin(partyTime*song.bpm/60*Math.PI*2))* .85:0,
     });ctx.restore();
   }
   function drawParty() {
@@ -506,10 +520,10 @@
       const columns=compact?(row===0?4:3):5;
       const x=width*(.12+(column+.5)*.76/columns);
       const base=compact?200+row*86:238+row*112;
-      const hop = still ? 0 : Math.abs(Math.sin(pulse/2+i*.7))*14;
       const scale = compact ? .88 : 1.28;
-      ellipse(x,base+scale*25,25,4,'#243e321c');
-      character(friend,{x:x-22,y:base-hop-26,face:i%2?-1:1,grounded:false,vx:0},still?0:Math.sin(pulse/2+i)*.1,scale,still);
+      const feetY=base+scale*25;
+      ellipse(x,feetY,25,4,'#243e321c');
+      character(friend,{x:x-22,y:feetY-52,face:i%2?-1:1,grounded:true,vx:0},scale,still);
     });
     for(let i=0;i<8;i++) ellipse(width/2-49+i*14,430,3,3,(still ? 0 : Math.floor(partyTime*song.bpm/60*2)%8)===i?green:'#aab99e');
   }
@@ -521,11 +535,11 @@
     const ground=ctx.createLinearGradient(0,floor,0,460);ground.addColorStop(0,'#d2d9b8');ground.addColorStop(1,'#e2dfc4');
     ctx.fillStyle=ground;ctx.fillRect(0,floor,worldWidth,80);line(0,floor,worldWidth,floor,'#82996c',2);
     ctx.beginPath();ctx.moveTo(0,413);for(let x=0;x<worldWidth;x+=40)ctx.lineTo(x,413+Math.sin(x*.008)*5);ctx.strokeStyle='#e9e4c9';ctx.lineWidth=17;ctx.stroke();
-    for(let i=0;i<100;i++){const x=i*29+10;line(x,405+(i%4)*13,x+3+(i%3),405+(i%4)*13,'#a9b18b60',1);}
-    drawWorldDetails();
+    for(let i=0;i<48;i++){const x=i*59+10;line(x,405+(i%4)*13,x+3+(i%3),405+(i%4)*13,'#b2bb9650',1);}
+    drawWorldBackdrop();
     platforms.forEach((p,i)=>{if(p.x+p.w>camera-30 && p.x<camera+width+30)drawPlatform(p,i);});
-    line(126,floor,126,floor-74,'#7b9166',2);round(86,floor-76,85,25,4,paper,'#7b9166');label('LISTEN →',101,floor-60,10,'#58724d');
     drawSpeaker();
+    drawWorldResidents();
     for(let i=0;i<notes.length;i++) {
       const n=notes[i];if(n.x<camera-50 || n.x>camera+width+50)continue;
       if(n.found) {
@@ -545,10 +559,10 @@
     if(!motionPreference.matches)for(const p of particles){ctx.save();ctx.globalAlpha=Math.min(1,p.life*2);ellipse(p.x,p.y,p.size,p.size,p.color);ctx.restore();}
     if(pickupLabel){ctx.save();ctx.globalAlpha=Math.min(1,pickupLabel.life*3);round(pickupLabel.x-49,pickupLabel.y-15,98,23,11,'#fffdf0ee');ctx.textAlign='center';label(pickupLabel.text,pickupLabel.x,pickupLabel.y,11,green);ctx.restore();}
     ctx.restore();
-    // Foreground leaves pass at a different speed to give the walk depth.
-    for(let i=0;i<24;i++) {
-      const x=i*190-camera*1.08;
-      if(x>-60&&x<width+60){plant(x,468,1.05+(i%3)*.24,'#819667');plant(x+19,477,.95,'#a3b28a');}
+    // A shallow foreground border leaves feet, notes and platform edges clear.
+    for(let i=0;i<12;i++) {
+      const x=260+i*230-camera*1.08;
+      if(x>-60&&x<width+60)plant(x,474,.65+(i%3)*.08,'#a6b48e');
     }
     if(phase==='playing' && count===0 && player.x<180){round(18,18,194,30,15,'#fffdf0c9');label(touchDevice.matches?'Hold a direction. Tap Jump.':'Hold jump for a higher hop',32,37,10,'#536d48');}
   }
