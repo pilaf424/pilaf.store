@@ -31,7 +31,15 @@
   }
   async play(players){this.stop();const epoch=this.epoch;this.players=[...players];await this.ready();if(epoch!==this.epoch)return;this.running=true;this.step=0;this.next=this.context.currentTime+.08;this.startedAt=this.next;}
   async preview(player){this.stop();const epoch=this.epoch;await this.ready();if(epoch!==this.epoch)return;const duration=60/this.song.bpm/2,section=C.sectionFor(this.song,0),start=this.context.currentTime+.04;
-   for(let slot=0;slot<8;slot++)this.perform(player,slot,0,section,start+duration*slot+(slot%2?duration*this.song.style.swing:0),duration,0,1);
+   const part=player.role==='bass'?'bass':['pad','keys','choir'].includes(player.role)?'chords':['arp','bell'].includes(player.role)?'counter':['drums','wood'].includes(player.role)?'drums':'lead';
+   const bar=section.parts.findIndex(p=>p[part].length);
+   if(bar>=0){for(let slot=0;slot<8;slot++)this.perform(player,slot,bar,section,start+duration*slot+(slot%2?duration*this.song.style.swing:0),duration,0,1);}
+   else for(const [i,kind] of ['kick','rim','hat'].entries()){
+    const when=start+i*.28;
+    if(player.role==='drums')this.drum(kind,when,kind==='kick'?.14:.05);
+    else this.voice(player,frequency(this.song.root-12+i*2),when,.16,player.level);
+    this.markHit(player.id,when);
+   }
   }
   voice(player,freq,when,length,level,vowel='ah'){
    if(player.role==='vocal'||player.role==='choir'){this.vocal(player,freq,when,length,level,vowel);return;}
@@ -57,30 +65,33 @@
    this.synth?.drum(kind,when,level);
   }
   perform(player,slot,bar,section,when,duration,index=0,mix=1){
-   const {root,style}=this.song,chord=section.chords[bar],role=player.role,offset=index%2,level=player.level*mix,bright=section.bright;
-   const note=(midi,length=duration*1.1,velocity=1,delay=0)=>{this.voice(player,frequency(midi),when+delay,length,level*velocity);this.markHit(player.id,when+delay);};
-   if(role==='drums'){const kicks=style.kicks.length?style.kicks:[0],snares=style.snares;
-    const soft=['bossa','mallets','ambient'].includes(style.groove),space=section.sparse&&bar<2;
-    if(kicks.includes(slot)&&(!space||slot===0))this.drum('kick',when,.19*mix*(soft?.65:1));
-    if(snares.includes(slot)&&!space)this.drum(soft?'rim':'snare',when,.075*mix);
-    if(style.groove!=='ambient'&&!space)this.drum(slot===7&&bright?'openhat':'hat',when,(slot%2?.037:.017)*mix);
-    if(bar===3&&slot===section.fill&&!space&&style.groove!=='ambient')this.drum(soft?'rim':'snare',when+duration*.5,.035*mix);
-    if(kicks.includes(slot)||snares.includes(slot)||!space&&style.groove!=='ambient')this.markHit(player.id,when);return;
+   const {root,style}=this.song,role=player.role,level=player.level*mix;
+   const play=(e,midi=e.midi,scale=1)=>{this.voice(player,frequency(midi),when+e.offset*duration,duration*e.length,level*e.velocity*scale);this.markHit(player.id,when+e.offset*duration);};
+   const events=part=>C.events(this.song,section,bar,slot,part);
+   if(role==='drums'){
+    for(const e of events('drums')){this.drum(e.kind,when+e.offset*duration,(e.kind==='kick'?.19:e.kind==='snare'?.075:e.kind==='rim'?.055:.039)*mix*e.velocity);this.markHit(player.id,when+e.offset*duration);}return;
    }
    if(role==='vocal'){
-    const sparse=section.sparse||style.groove==='ambient',slots=sparse?[0,4]:[0,3,6];
-    if(slots.includes(slot)){const vowel=['ah','oo','ee'][(Math.floor(slot/3)+bar+section.index)%3],length=duration*(sparse?3.45:slot===6?1.5:2.55),midi=root+12+chord[(bar+slots.indexOf(slot))%3];this.voice(player,frequency(midi),when,length,level,vowel);this.markHit(player.id,when);}
+    const lead=section.parts[bar].lead.filter(e=>e.velocity>.4).slice().sort((a,b)=>a.at-b.at),stride=Math.max(1,Math.ceil(lead.length/3)),phrases=lead.filter((e,i)=>i%stride===0);
+    for(const [i,e] of phrases.entries())if(Math.floor(e.at)===slot){
+     let midi=e.midi;while(midi<root+7)midi+=12;while(midi>root+26)midi-=12;
+     const room=(phrases[i+1]?.at||8)-e.at,length=Math.max(.28,duration*Math.min(Math.max(e.length,1.2),Math.max(1.0,room-.35))),at=when+(e.at-slot)*duration;
+     this.voice(player,frequency(midi),at,length,level*e.velocity,['ah','oo','ee'][(i+bar+section.index)%3]);this.markHit(player.id,at);
+    }return;
    }
-   else if(role==='bass'){if(style.bass.includes(slot)){const tone=slot===7&&style.groove==='swing'?section.chords[(bar+1)%4][0]-1:chord[slot===3||slot===7?2:0];note(root-12+tone+(style.groove==='disco'&&slot%2?12:0),duration*(style.groove==='ambient'?5:style.groove==='dub'?1.8:.95),slot===0?1:.82);}}
-   else if(role==='choir'){
-    if((style.groove==='ambient'?[0]:[0,4]).includes(slot)){const vowel=(bar+section.index+slot/4)%2?'oo':'ah';for(const n of chord)this.voice(player,frequency(root+n),when,duration*(style.groove==='ambient'?6.5:3.3),level,vowel);this.markHit(player.id,when);}
+   if(role==='choir'){
+    const groups=new Map();for(const e of events('chords')){const key=Math.floor(e.at*4);const group=groups.get(key)||[];if(group.length<3)group.push(e);groups.set(key,group);}
+    for(const group of groups.values())for(const e of group){const at=when+e.offset*duration;this.voice(player,frequency(e.midi),at,duration*Math.max(1.2,e.length),level*e.velocity,(bar+section.index)%2?'oo':'ah');this.markHit(player.id,at);}return;
    }
-   else if(role==='pad'){if(slot===offset*4)C.voicing(this.song,chord,bar,true,bright).forEach((midi,i)=>note(midi,duration*(style.groove==='disco'?3:6),.62,i*.018));}
-   else if(role==='keys'){const slots=section.sparse?[0]:style.groove==='bossa'?[0,3,6]:style.groove==='disco'?[1,3,5,7]:style.groove==='swing'?[0,3,6]:[0,5];if(slots.includes(slot))C.voicing(this.song,chord,bar,true,bright).forEach((midi,i)=>note(midi,duration*(style.groove==='ambient'?4:style.groove==='disco'?.8:2.1),.48,i*.014));}
-   else if(role==='wood'){if((style.groove==='ambient'?[0,6]:[0,2,4,7]).includes(slot))note(root-12+chord[slot%3],.07);}
-   else if(role==='arp'){if((section.sparse?[0,3,6]:[0,2,3,5,6,7]).includes(slot))note(root+12+chord[(slot+index+section.index)%3],duration*.9);}
-   else if(role==='bell'){if([2+offset,6+offset].includes(slot))note(root+(player.id==='firefly'?24:12)+chord[(slot+section.index)%3],duration*2);}
-   else {const gate=role==='pluck'?[1,3,4,7]:style.groove==='ambient'?[0,4]:[0,2,4,6,7];if(gate.includes(slot)&&section.gate[slot]){let freq=section.melody[(slot+index*2)%8];if(player.id==='axolotl')freq*=2;this.voice(player,freq,when,duration*(role==='pluck'?.45:bright?1.4:1.1),level*section.accents[slot]);this.markHit(player.id,when);}}
+   if(role==='bass'){for(const e of events('bass'))play(e);return;}
+   if(role==='pad'||role==='keys'){for(const e of events('chords'))play(e,e.midi,role==='pad'?.8:.68);return;}
+   if(role==='wood'){
+    for(const e of events('drums').filter(e=>e.kind==='rim'||e.kind==='snare'))play({...e,length:.28},root-12+section.chords[bar][slot%3],.85);return;
+   }
+   if(role==='arp'||role==='bell'){
+    for(const e of events('counter')){if(role==='bell'&&Math.round(e.at*2)%2&&style.groove==='chip')continue;play(e,e.midi+(player.id==='firefly'?0:-12),role==='arp'?.85:1);}return;
+   }
+   for(const e of events('lead'))play({...e,length:role==='pluck'?Math.min(e.length,.8):e.length},e.midi+(player.id==='axolotl'?12:0));
   }
   tick(){if(!this.running||!this.context||this.context.state!=='running')return;const now=this.context.currentTime,duration=60/this.song.bpm/2;if(this.next<now-.2)this.next=now+.04;
    while(this.next<now+.12){const slot=this.step%8,bar=Math.floor(this.step/8)%4,phrase=Math.floor(this.step/32),section=C.sectionFor(this.song,phrase),when=this.next+(slot%2?duration*this.song.style.swing:0);

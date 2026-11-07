@@ -118,34 +118,16 @@
       }
       const chord = section.chords[bar], style=song.style, groove=style.groove;
       const when = nextBeat + (slot%2 ? song.style.swing*step : 0);
-      const leadLevel=(style.voice==='square'?.13:.22)*section.accents[slot];
-      const leadVoice=({ambient:'lead',mallets:'mallet',bossa:'pluck',disco:'pluck',chip:'lead',breaks:'lead'})[groove]||'keys';
-      const pitch=phase==='won'?section.melody[slot]:pitches[slot];
-      if(notes[slot].found && (phase!=='won'||section.gate[slot])) {
-        tone(pitch,when,step*(groove==='ambient'?2.3:1.3),phase==='won'?leadLevel:leadLevel*1.1,style.voice,leadVoice);
-        if(style.echo) tone(pitch,when+step*3,step*.9,leadLevel*style.echo*.65,'sine',leadVoice);
+      const full=phase==='won',play=(e,level,voice=e.voice)=>tone(frequency(e.midi),when+e.offset*step,step*e.length,level*e.velocity,style.voice,voice);
+      const leadLevel=style.voice==='square'?.12:.20;
+      for(const e of composer.events(song,section,bar,slot,'lead'))if(full||notes[slot].found)play(e,leadLevel*(full?1:.75));
+      if(full||count>=2)for(const e of composer.events(song,section,bar,slot,'chords'))play(e,full?.063:.025);
+      if(full||count>=4)for(const e of composer.events(song,section,bar,slot,'bass'))play(e,full?.18:.075,'bass');
+      for(const e of composer.events(song,section,bar,slot,'drums')){
+        if(!full&&(e.kind==='kick'?count<6:count<7))continue;
+        drum(e.kind,when+e.offset*step,e.velocity*(full?1:.35));
       }
-      if(phase === 'won') {
-        const offbeat=['disco','dub','bossa'].includes(groove);
-        if(offbeat ? slot%2===1 : slot===0) composer.voicing(song,chord,bar,true,section.bright).forEach((midi,i)=>tone(frequency(midi),when+i*.014,step*(offbeat?.85:7.4),offbeat?.046:.05,'triangle',offbeat?'keys':'pad'));
-        if(style.bass.includes(slot) && (!section.sparse || slot===0)) tone(frequency(song.root-12+chord[slot===3||slot===7?2:0]+(groove==='disco'&&slot%2?12:0)),when,step*(groove==='dub'?2:1.15),.18,'triangle','bass');
-        if(!section.sparse || bar>=2) {
-          if(style.kicks.includes(slot)) drum('kick',when,['bossa','mallets'].includes(groove)?.6:1);
-          if(style.snares.includes(slot)) {
-            if(['bossa','mallets'].includes(groove)) drum('rim',when,.8);
-            else drum('snare',when);
-          }
-          if(groove!=='ambient' && (groove!=='dub' || slot%2)) drum(section.bright&&slot===7?'openhat':'hat',when,slot%2?.8:.4);
-          if(bar===3 && slot===section.fill && groove!=='ambient') drum('snare',when+step*.5,.42);
-        }
-        if((section.bright || groove==='chip' || groove==='mallets') && slot%2) tone(frequency(song.root+24+chord[section.counter[slot]]),when,step*.9,.045,'sine','bell');
-      } else {
-        // Collecting notes gradually builds a band, with space left for play.
-        if(count>=2&&slot===0)composer.voicing(song,chord,bar,true).forEach((midi,i)=>tone(frequency(midi),when+i*.02,step*5,.018,'triangle','pad'));
-        if(count>=4&&style.bass.includes(slot))tone(frequency(song.root-12+chord[slot===3||slot===7?2:0]),when,step*1.2,.075,'triangle','bass');
-        if(count>=6&&style.kicks.includes(slot))drum('kick',when,.38);
-        if(count>=7&&style.snares.includes(slot))drum(['bossa','mallets'].includes(groove)?'rim':'snare',when,.3);
-      }
+      if(full)for(const e of composer.events(song,section,bar,slot,'counter'))play(e,.042);
       nextBeat += step; beat++;
     }
   }
