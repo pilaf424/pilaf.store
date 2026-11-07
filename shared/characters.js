@@ -121,7 +121,9 @@ function drawBand(ctx,id,p){
  const nod=p.sway*.025+p.hit*.035;
  switch(id){
  case 'onigiri':{
-  bandLegs(ctx,p,C.cream,{hip:-24,spread:12});
+  // The rice triangle ends near -30; tuck both hips into it before painting
+  // the shell so a nod cannot open a gap above the independently moving legs.
+  bandLegs(ctx,p,C.cream,{hip:-34,spread:12});
   const left=p.play?[-31,-58]:[-35-walking*2,-33+walking*7];
   const right=p.play?[31,-58+p.hit*2]:[35-walking*2,-33-walking*7];
   bandArm(ctx,-26,-47,...left,C.cream,-1,5.5);
@@ -149,8 +151,10 @@ function drawBand(ctx,id,p){
   if(p.blink>.5){oval(ctx,-7.5,-65,2,2,C.cream,null);oval(ctx,7.5,-65,2,2,C.cream,null);bandBlink(ctx,0,-65,7.5,p);}
   // The theremin rests on a shoulder strap; the aerial never bends.
   line(ctx,[[-8,-48],[20,-28]],C.gold,2);
+  // A rigid mounting elbow enters the case; the outside aerial must not float
+  // beside its edge when the rabbit moves its hands around the instrument.
+  line(ctx,[[34,-29],[39,-29],[39,-72]],INK,1.25);oval(ctx,39,-73,2.2,2.2,C.gold);
   sourcePart(ctx,id,[4,6,33,34,35,36],22,-29,29);
-  line(ctx,[[39,-35],[39,-72]],INK,1.25);oval(ctx,39,-73,2.2,2.2,C.gold);
   const hand=p.play?[28+gesture*3,-52-p.hit*6]:[26,-36];
   bandArm(ctx,13,-44,...hand,C.cream,1,5.5);
   bandArm(ctx,-13,-44,p.play?-5:-21,p.play?-31+p.hit*2:-30+walking*7,C.cream,-1,5.5);
@@ -179,8 +183,16 @@ function drawBand(ctx,id,p){
   // Each feathery gill has its own pivot at the cheek.
   const gills=[[[5,13,14,19],-30,-83,16,-1],[[6,15,16,20],-34,-68,19,-1],[[9,11,17,18,21],-30,-55,16,-1],
    [[4,22,23,28],30,-83,16,1],[[7,24,25,29],34,-68,19,1],[[8,12,26,27,30],30,-55,16,1]];
-  for(let i=0;i<gills.length;i++){const [indices,x,y,w,side]=gills[i];sourcePart(ctx,id,indices,x,y,w,side*(p.sway*.08+gesture*.04));}
-  sourcePart(ctx,id,[1,31,32,33,34],0,-69,47,nod);
+  ctx.save();ctx.translate(0,-69);ctx.rotate(nod);
+  for(let i=0;i<gills.length;i++){
+   const [indices,x,y,w,side]=gills[i],rootX=side*[14,20,15][i%3],rootY=[-76,-68,-61][i%3];
+   ctx.save();ctx.translate(rootX,rootY+69);ctx.rotate(side*(p.sway*.08+gesture*.04));
+   // Flexible gill stems pivot at the cheek with the head, instead of letting
+   // separately cropped feathers orbit in empty space beside the face.
+   joint(ctx,[[0,0],[x-rootX,y-rootY]],gill,2.2);
+   sourcePart(ctx,id,indices,x-rootX,y-rootY,w);ctx.restore();
+  }
+  sourcePart(ctx,id,[1,31,32,33,34],0,0,47);ctx.restore();
   sourcePart(ctx,id,[2,40,41,42,44,45],0,-30,53);
   const slider=p.play?gesture*15:0;
   oval(ctx,slider,-30,2.5,2.5,C.gold);
@@ -226,8 +238,9 @@ function drawBand(ctx,id,p){
   }
   box(ctx,-5,-60,10,12,1,C.copper);
   sourcePart(ctx,id,[1,12,13,14,15,16,17,18,19,23,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51],0,-36,45);
-  sourcePart(ctx,id,[0,2,8,26,27,28,29,30,31,32,33,34],0,-73,55,nod);
-  line(ctx,[[0,-88],[5+p.sway*2,-96]],INK,1.2);oval(ctx,5+p.sway*2,-96,2.7,2.7,C.gold);
+  ctx.save();ctx.translate(0,-73);ctx.rotate(nod);
+  line(ctx,[[0,-13],[5+p.sway*2,-23]],INK,1.2);oval(ctx,5+p.sway*2,-23,2.7,2.7,C.gold);
+  sourcePart(ctx,id,[0,2,8,26,27,28,29,30,31,32,33,34],0,0,55);ctx.restore();
   for(const side of [-1,1]){
    const hx=p.play?(side<0?-31:8+gesture*5):side*33-walking*2;
    const hy=p.play?(side<0?-59-p.hit*5:-35+p.hit*2):-35-side*walking*9;
@@ -571,11 +584,16 @@ function drawNature(ctx, id, p) {
     shape(ctx, 'M-5,-4 L-12,11 L0,6 L11,10 L5,-6 Z', '#b86b5b', INK, 1.15);
     line(ctx, [[0, -1], [0, 6]], INK, 0.8); ctx.restore();
     const shoulder = wave(2.4) * 0.6;
-    const freeHand = playing ? wave(5.5) * 4 : (p.walk ? wave(7.5) * 5 : wave(2.6) * 2);
-    joint(ctx, [[13, -44 + shoulder], [26, -38 - freeHand], [34, -45 - freeHand]], '#d3aa61', 4.5);
-    oval(ctx, 34, -45 - freeHand, 2.4, 3.3, '#d3aa61', INK, 0.95);
-    const micX = -30, micY = -46 + (p.walk ? wave(7.5, 1.5) * 2 : 0);
-    joint(ctx, [[-7, -45 + shoulder], [-17, -39], [micX + 4, micY + 8]], '#d3aa61', 4.5);
+    const gait = p.walk ? Math.sin(p.cycle) * p.speed : 0;
+    const freeSwing = playing ? Math.sin(p.beat) * (2 + p.hit * 2) : (p.walk ? gait * 5 : wave(2.6) * 1.2);
+    const freeRoot = [16, -46 + shoulder], freeHand = [34 + gait * .6, -43 - freeSwing];
+    joint(ctx, [freeRoot, bendJoint(freeRoot, freeHand, 12, 12, 1), freeHand], '#d3aa61', 4.5);
+    oval(ctx, ...freeHand, 2.4, 3.3, '#d3aa61', INK, 0.95);
+    const micX = -30 + gait * 1.4, micY = -46 + (p.walk ? Math.cos(p.cycle) * p.speed * 1.5 : playing ? p.hit * .8 : 0);
+    const micRoot = [14, -47 + shoulder], grip = [micX + 3, micY + 8];
+    // The shrimp curls around empty space at x=-7: the shoulder belongs inside
+    // its right-hand torso, not in that opening. Paint both roots under the shell.
+    joint(ctx, [micRoot, bendJoint(micRoot, grip, 23, 23, -1), grip], '#d3aa61', 4.5);
     ctx.save(); ctx.translate(0, shoulder);
     shape(ctx, 'M-14,-67 Q-23,-66 -22,-73 Q-28,-76 -24,-83 Q-20,-88 -14,-83 Q-11,-94 -2,-90 Q4,-90 6,-84 Q16,-88 20,-79 Q29,-77 23,-67 Q31,-41 12,-24 Q1,-15 -10,-20 Q-14,-23 -7,-27 Q7,-36 8,-47 Q10,-58 5,-64 Q-1,-59 -6,-65 Q-11,-62 -14,-67 Z', '#d3aa61', INK, 1.3);
     natureFace(ctx, 0, -76, 1.1, p, playing);
@@ -590,6 +608,8 @@ function drawNature(ctx, id, p) {
     box(ctx, micX - 6, micY - 14, 12, 25, 6, '#37789a', INK, 1.2);
     for (let i = 0; i < 3; i++) line(ctx, [[micX - 3.5, micY - 8 + i * 4], [micX + 3.5, micY - 8 + i * 4]], INK, 0.85);
     shape(ctx, `M${micX - 9},${micY + 3} Q${micX - 10},${micY + 17} ${micX},${micY + 16} Q${micX + 10},${micY + 17} ${micX + 9},${micY + 3}`, null, INK, 1.1);
+    oval(ctx, grip[0], grip[1], 3.2, 2.6, '#d3aa61', INK, .95);
+    line(ctx, [[grip[0] - 1.1, grip[1] + .4], [grip[0] + 1.1, grip[1] + .4]], INK, .65);
     return true;
   }
   return false;
